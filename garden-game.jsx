@@ -17,7 +17,7 @@ const ALUMINUM_BUNDLES = [
 // Watering tools — can be bought/removed anytime.
 // Can = simple owned count, click-to-water. Spigot = a fixture placed once. PVC = bought in feet, run pipe-to-pipe.
 const WATER_TOOLS = [
-  { id: 'can', name: 'Watering Can', icon: '🪣', cost: 5, coverage: 'square', desc: 'Waters one square per click. Cheap, but slow for a big garden.' },
+  { id: 'can', name: 'Watering Can', icon: '🫗', cost: 5, coverage: 'square', desc: 'Waters one square per click. Cheap, but slow for a big garden.' },
 ];
 const SPIGOT = { id: 'spigot', name: 'Water Spigot', icon: '🚰', cost: 40, desc: 'An outdoor spigot fixture. Place it once, then touch it to turn the water on or off.' };
 const PVC_BUNDLES = [
@@ -26,9 +26,30 @@ const PVC_BUNDLES = [
 ];
 const RAIN_BARREL = { id: 'barrel', name: 'Rain Barrel (50gal)', icon: '🛢️', cost: 25, capacity: 50, refillPerDay: 4 };
 
+// Light sources required for the Heat/Light Germination stage. Higher successBonus = better odds/speed.
+const LIGHT_SOURCES = [
+  { id: 'growlight', name: 'Grow Light', icon: '💡', desc: 'Best light. Highest, most consistent germination success.', successMult: 1.15, speedMult: 0.85 },
+  { id: 'sunlight', name: 'Direct Sunlight', icon: '☀️', desc: 'A sunny spot outdoors or in a bright window. High to moderate success.', successMult: 1.0, speedMult: 1.0 },
+  { id: 'windowlight', name: 'Window / Indirect Light', icon: '🪟', desc: 'Indoor ambient light. Moderate to low success — inconsistent with weather.', successMult: 0.8, speedMult: 1.2 },
+];
+
+// Growth stage thresholds as % of a plant's total maturity time, matching real growth: seed -> seedling -> baby -> ready -> oversized -> dying.
+const GROWTH_STAGES = [
+  { id: 'seed', label: 'Seed', icon: '🌰', min: 0, max: 0.1 },
+  { id: 'seedling', label: 'Seedling', icon: '🌱', min: 0.1, max: 0.3 },
+  { id: 'baby', label: 'Baby Plant', icon: '🌿', min: 0.3, max: 0.7 },
+  { id: 'ready', label: 'Ready to Transplant', icon: '🪴', min: 0.7, max: 1.0 },
+  { id: 'oversized', label: 'Oversized — Transplant Soon!', icon: '⚠️', min: 1.0, max: 1.25 },
+  { id: 'dying', label: 'Dying — Overdue!', icon: '💀', min: 1.25, max: Infinity },
+];
+function growthStageFor(ageInDays, totalDaysNeeded) {
+  const pct = totalDaysNeeded > 0 ? ageInDays / totalDaysNeeded : 0;
+  return GROWTH_STAGES.find((s) => pct >= s.min && pct < s.max) || GROWTH_STAGES[GROWTH_STAGES.length - 1];
+}
+
 const ADDITIVES = [
-  { id: 'vermiculite', name: 'Vermiculite', icon: '✨', cost: 5, desc: 'Improves water retention in soil mixes.' },
-  { id: 'perlite', name: 'Perlite', icon: '🪨', cost: 5, desc: 'Improves drainage and aeration in soil mixes.' },
+  { id: 'vermiculite', name: 'Vermiculite', icon: '🟤', cost: 5, desc: 'Improves water retention in soil mixes.' },
+  { id: 'perlite', name: 'Perlite', icon: '⚪', cost: 5, desc: 'Improves drainage and aeration in soil mixes.' },
   { id: 'coir', name: 'Coconut Coir', icon: '🥥', cost: 4, desc: 'A renewable peat-moss alternative for moisture retention.' },
 ];
 const PLANT_LIGHT = { id: 'light', name: 'Grow Light', icon: '💡', cost: 35, desc: 'Supplemental light for indoor trays. Helps seedlings that need more sun than a windowsill gives.' };
@@ -37,14 +58,18 @@ const PLANT_FOOD = { id: 'food', name: 'Plant Food', icon: '🧪', cost: 8, desc
 const BASE_NURSERY_DAYS = 12;
 
 const PLANTS = [
-  { id: 'lettuce', name: 'Lettuce', emoji: '🥬', seedCost: 3, plantCost: 9, daysToMature: 6, minTemp: 'cool', sellValue: 9, waterNeed: 'med', soilPref: 'starting', perSqFt: 4 },
-  { id: 'carrot', name: 'Carrot', emoji: '🥕', seedCost: 2, plantCost: 6, daysToMature: 10, minTemp: 'cool', sellValue: 8, waterNeed: 'low', soilPref: 'garden', perSqFt: 16 },
-  { id: 'tomato', name: 'Tomato', emoji: '🍅', seedCost: 5, plantCost: 15, daysToMature: 14, minTemp: 'warm', sellValue: 18, waterNeed: 'high', soilPref: 'starting', perSqFt: 1 },
-  { id: 'pepper', name: 'Bell Pepper', emoji: '🫑', seedCost: 5, plantCost: 15, daysToMature: 15, minTemp: 'warm', sellValue: 16, waterNeed: 'med', soilPref: 'starting', perSqFt: 1 },
-  { id: 'kale', name: 'Kale', emoji: '🥬', seedCost: 3, plantCost: 9, daysToMature: 8, minTemp: 'cold', sellValue: 10, waterNeed: 'low', soilPref: 'potting', perSqFt: 1 },
-  { id: 'squash', name: 'Squash', emoji: '🎃', seedCost: 4, plantCost: 12, daysToMature: 12, minTemp: 'warm', sellValue: 14, waterNeed: 'high', soilPref: 'potting', perSqFt: 1 },
-  { id: 'garlic', name: 'Garlic', emoji: '🧄', seedCost: 2, plantCost: 6, daysToMature: 16, minTemp: 'cold', sellValue: 12, waterNeed: 'low', soilPref: 'garden', perSqFt: 9 },
-  { id: 'bean', name: 'Bush Bean', emoji: '🫘', seedCost: 3, plantCost: 9, daysToMature: 9, minTemp: 'warm', sellValue: 11, waterNeed: 'med', soilPref: 'potting', perSqFt: 9 },
+  { id: 'lettuce', name: 'Lettuce', emoji: '🥬', seedCost: 3, plantCost: 9, daysToMature: 6, minTemp: 'cool', sellValue: 9, waterNeed: 'med', soilPref: 'starting', perSqFt: 4, stratDays: 0 },
+  { id: 'carrot', name: 'Carrot', emoji: '🥕', seedCost: 2, plantCost: 6, daysToMature: 10, minTemp: 'cool', sellValue: 8, waterNeed: 'low', soilPref: 'garden', perSqFt: 16, stratDays: 0 },
+  { id: 'tomato', name: 'Tomato', emoji: '🍅', seedCost: 5, plantCost: 15, daysToMature: 14, minTemp: 'warm', sellValue: 18, waterNeed: 'high', soilPref: 'starting', perSqFt: 1, stratDays: 0 },
+  { id: 'pepper', name: 'Bell Pepper', emoji: '🫑', seedCost: 5, plantCost: 15, daysToMature: 15, minTemp: 'warm', sellValue: 16, waterNeed: 'med', soilPref: 'starting', perSqFt: 1, stratDays: 0 },
+  { id: 'kale', name: 'Kale', emoji: '🥬', seedCost: 3, plantCost: 9, daysToMature: 8, minTemp: 'cold', sellValue: 10, waterNeed: 'low', soilPref: 'potting', perSqFt: 1, stratDays: 0 },
+  { id: 'squash', name: 'Squash', emoji: '🎃', seedCost: 4, plantCost: 12, daysToMature: 12, minTemp: 'warm', sellValue: 14, waterNeed: 'high', soilPref: 'potting', perSqFt: 1, stratDays: 0 },
+  { id: 'garlic', name: 'Garlic', emoji: '🧄', seedCost: 2, plantCost: 6, daysToMature: 16, minTemp: 'cold', sellValue: 12, waterNeed: 'low', soilPref: 'garden', perSqFt: 9, stratDays: 0 },
+  { id: 'bean', name: 'Bush Bean', emoji: '🫘', seedCost: 3, plantCost: 9, daysToMature: 9, minTemp: 'warm', sellValue: 11, waterNeed: 'med', soilPref: 'potting', perSqFt: 9, stratDays: 0 },
+  { id: 'lavender', name: 'Lavender', emoji: '💜', seedCost: 4, plantCost: 14, daysToMature: 18, minTemp: 'cool', sellValue: 15, waterNeed: 'low', soilPref: 'starting', perSqFt: 1, stratDays: 30 },
+  { id: 'milkweed', name: 'Milkweed', emoji: '🦋', seedCost: 3, plantCost: 10, daysToMature: 12, minTemp: 'cool', sellValue: 10, waterNeed: 'med', soilPref: 'garden', perSqFt: 1, stratDays: 30 },
+  { id: 'oregano', name: 'Oregano', emoji: '🌿', seedCost: 3, plantCost: 9, daysToMature: 10, minTemp: 'cool', sellValue: 9, waterNeed: 'low', soilPref: 'potting', perSqFt: 4, stratDays: 21 },
+  { id: 'sage', name: 'Sage', emoji: '🌱', seedCost: 3, plantCost: 9, daysToMature: 11, minTemp: 'cool', sellValue: 10, waterNeed: 'low', soilPref: 'potting', perSqFt: 1, stratDays: 21 },
 ];
 
 const ZONES = [
@@ -95,10 +120,18 @@ function daysToMatureFrom(plant, sourceType) {
   return Math.max(1, plant.daysToMature + offset);
 }
 function soilMatchesPlant(soilId, plant) { return soilId === plant.soilPref; }
-function nurseryDaysFor(soil) { return Math.round(BASE_NURSERY_DAYS * soil.speedMult); }
-function germinationSuccessFor(plant, soil) {
+function nurseryDaysFor(soil, light, boosted) {
+  let days = BASE_NURSERY_DAYS * soil.speedMult;
+  if (boosted) days *= 0.85;
+  if (light) days *= light.speedMult;
+  return Math.max(1, Math.round(days));
+}
+function germinationSuccessFor(plant, soil, light, boosted) {
   const match = soilMatchesPlant(soil.id, plant);
-  return match ? soil.baseSuccess : Math.max(0.15, soil.baseSuccess - 0.35);
+  let success = match ? soil.baseSuccess : Math.max(0.15, soil.baseSuccess - 0.35);
+  if (boosted) success = Math.min(0.98, success + 0.08);
+  if (light) success = Math.min(0.98, success * light.successMult);
+  return success;
 }
 
 // ---------- MAIN ----------
@@ -138,11 +171,12 @@ export default function GardenGame() {
   const [pendingTransplant, setPendingTransplant] = useState(null);
 
   const [trays, setTrays] = useState([]);
-  const [selectedTraySoil, setSelectedTraySoil] = useState('starting');
   const trayIdRef = useRef(0);
 
   const [inventory, setInventory] = useState({
     seeds: {}, livePlants: {}, soils: { starting: 0, potting: 0, garden: 0 }, emptyTrays: {},
+    boostedSoils: { starting: 0, potting: 0, garden: 0 }, // soil bags mixed with vermiculite/perlite
+    strattedSeeds: {}, // plantId -> count of seeds that finished cold stratification, ready to germinate
     woodSqFt: 0, aluminumSqFt: 0,
     waterTools: { can: 0 },
     pvcFeet: 0, spigots: 0,
@@ -150,6 +184,11 @@ export default function GardenGame() {
     additives: { vermiculite: 0, perlite: 0, coir: 0 },
     lights: 0, plantFood: 0,
   });
+  const [coldStratBatches, setColdStratBatches] = useState([]); // {id, plantId, daysIn, daysNeeded, ready}
+  const coldStratIdRef = useRef(0);
+  const [selectedLightSource, setSelectedLightSource] = useState(null);
+  const [indoorSubTab, setIndoorSubTab] = useState('table'); // soil | stratify | germinate | table
+  const [openTrayId, setOpenTrayId] = useState(null);
   const [discovered, setDiscovered] = useState({});
 
   const [score, setScore] = useState(0);
@@ -177,20 +216,25 @@ export default function GardenGame() {
       if (nextDayVal > DAYS_PER_SEASON) { setSeasonIdx((s) => (s + 1) % SEASONS.length); return 1; }
       return nextDayVal;
     });
+    const needsLog = [];
     const ageFn = (p) => {
       if (!p || p.harvested) return p;
       const health = Math.max(0, p.health - (p.wateredToday ? 0 : healthDropFor(p.waterNeed)));
+      if (!p.wateredToday && health < 60 && health > 0) needsLog.push(`${p.emoji} ${p.name} needs water (health ${health}%).`);
+      if (health <= 0 && p.health > 0) needsLog.push(`${p.emoji} ${p.name} died from lack of water.`);
       return { ...p, health, age: p.age + 1, wateredToday: false, dead: health <= 0 };
     };
     setBeds((prev) => prev.map((bed) => ({ ...bed, plants: bed.plants.map(ageFn) })));
     setGroundPlants((prev) => prev.map(ageFn));
     setTrays((prev) => prev.map((t) => ({ ...t, cells: t.cells.map((c) => (c && !c.ready && !c.failed ? { ...c, daysIn: c.daysIn + 1, ready: c.daysIn + 1 >= c.daysNeeded } : c)) })));
+    setColdStratBatches((prev) => prev.map((b) => (b.ready ? b : { ...b, daysIn: b.daysIn + 1, ready: b.daysIn + 1 >= b.daysNeeded })));
     setInventory((inv) => {
       if (inv.rainBarrels < 1) return inv;
       const maxGallons = inv.rainBarrels * RAIN_BARREL.capacity;
       const refilled = Math.min(maxGallons, inv.rainBarrelGallons + inv.rainBarrels * RAIN_BARREL.refillPerDay);
       return { ...inv, rainBarrelGallons: refilled };
     });
+    if (needsLog.length > 0) setLog((l) => [...needsLog.slice(0, 3), ...l].slice(0, 6));
   }
   function healthDropFor(need) { return need === 'high' ? 18 : need === 'med' ? 11 : 6; }
 
@@ -513,8 +557,13 @@ export default function GardenGame() {
     }));
   }
   function deletePipe(pipeId) {
+    const pipe = pipes.find((p) => p.id === pipeId);
+    if (!pipe) return;
+    const length = pipeLength(pipe.x0, pipe.y0, pipe.x1, pipe.y1);
+    const feet = length * 10;
     setPipes((prev) => prev.filter((p) => p.id !== pipeId));
-    addLog('Removed the pipe. (No material refund.)');
+    setInventory((inv) => ({ ...inv, pvcFeet: inv.pvcFeet + feet }));
+    addLog(`Picked up ${feet}ft of PVC pipe — back in inventory to reuse.`);
   }
   function pointsTouch(x0, y0, x1, y1) {
     return x0 === x1 && y0 === y1;
@@ -632,27 +681,61 @@ export default function GardenGame() {
     return true;
   }
 
-  function placeTray(sizeId, soilId) {
+  function placeTray(sizeId, soilId, useBoosted) {
     const size = TRAY_SIZES.find((t) => t.id === sizeId);
     if ((inventory.emptyTrays[sizeId] || 0) < 1) { addLog(`No ${size.slots}-cell trays in inventory — buy one from the Plant Nursery.`); return; }
-    if (inventory.soils[soilId] < 1) { addLog(`You need a bag of ${SOILS.find((s) => s.id === soilId).name} — buy from the Plant Nursery.`); return; }
+    const soilStock = useBoosted ? inventory.boostedSoils[soilId] : inventory.soils[soilId];
+    if (soilStock < 1) { addLog(`You need a bag of ${useBoosted ? 'boosted ' : ''}${SOILS.find((s) => s.id === soilId).name} — make or buy some first.`); return; }
     removeEmptyTray(sizeId, 1);
-    removeSoilInv(soilId, 1);
+    if (useBoosted) setInventory((inv) => ({ ...inv, boostedSoils: { ...inv.boostedSoils, [soilId]: inv.boostedSoils[soilId] - 1 } }));
+    else removeSoilInv(soilId, 1);
     trayIdRef.current += 1;
-    setTrays((prev) => [...prev, { tid: trayIdRef.current, size: size.slots, soilId, cells: Array(size.slots).fill(null) }]);
-    addLog(`Filled a ${size.slots}-cell tray with ${SOILS.find((s) => s.id === soilId).name}.`);
+    setTrays((prev) => [...prev, { tid: trayIdRef.current, size: size.slots, soilId, boosted: !!useBoosted, cells: Array(size.slots).fill(null) }]);
+    addLog(`Filled a ${size.slots}-cell tray with ${useBoosted ? 'boosted ' : ''}${SOILS.find((s) => s.id === soilId).name}.`);
+  }
+  function placeEmptyTrayOnTable(sizeId) {
+    const size = TRAY_SIZES.find((t) => t.id === sizeId);
+    if ((inventory.emptyTrays[sizeId] || 0) < 1) { addLog(`No ${size.slots}-cell trays in inventory — buy one from the Plant Nursery.`); return; }
+    removeEmptyTray(sizeId, 1);
+    trayIdRef.current += 1;
+    setTrays((prev) => [...prev, { tid: trayIdRef.current, size: size.slots, soilId: null, boosted: false, cells: Array(size.slots).fill(null) }]);
+    addLog(`Placed an empty ${size.slots}-cell tray on the table. Click it to add soil.`);
+  }
+  function fillPlacedTray(trayId, soilId, useBoosted) {
+    const soilStock = useBoosted ? inventory.boostedSoils[soilId] : inventory.soils[soilId];
+    if (soilStock < 1) { addLog(`You need a bag of ${useBoosted ? 'boosted ' : ''}${SOILS.find((s) => s.id === soilId).name}.`); return; }
+    if (useBoosted) setInventory((inv) => ({ ...inv, boostedSoils: { ...inv.boostedSoils, [soilId]: inv.boostedSoils[soilId] - 1 } }));
+    else removeSoilInv(soilId, 1);
+    setTrays((prev) => prev.map((t) => (t.tid === trayId ? { ...t, soilId, boosted: !!useBoosted } : t)));
+    addLog(`Added ${useBoosted ? 'boosted ' : ''}${SOILS.find((s) => s.id === soilId).name} to the tray.`);
   }
   function plantTrayCell(tray, cellIdx) {
+    if (!tray.soilId) { addLog('Add soil to this tray first.'); return; }
     if (!selectedPlant) { addLog('Pick a seed first, then tap tray cells.'); return; }
+    if (!selectedLightSource) { addLog('Select a light source (Grow Light, Sunlight, or Window Light) before starting seeds.'); return; }
     const cell = tray.cells[cellIdx];
     if (cell) return; // occupied cells are handled by their own delete button now
     if (!canGrowInZone(selectedPlant, zone.tempProfile)) { addLog(`${selectedPlant.name} won't survive in ${zone.name}.`); return; }
-    if ((inventory.seeds[selectedPlant.id] || 0) < 1) { addLog(`No ${selectedPlant.name} seed packets in inventory. Buy from the Plant Nursery.`); return; }
+    const needsStrat = selectedPlant.stratDays > 0;
+    if (needsStrat) {
+      if ((inventory.strattedSeeds[selectedPlant.id] || 0) < 1) {
+        addLog(`${selectedPlant.name} needs ${selectedPlant.stratDays} days of Cold Stratification first — start it in that tab.`);
+        return;
+      }
+    } else if ((inventory.seeds[selectedPlant.id] || 0) < 1) {
+      addLog(`No ${selectedPlant.name} seed packets in inventory. Buy from the Plant Nursery.`);
+      return;
+    }
     const soil = SOILS.find((s) => s.id === tray.soilId);
-    const successChance = germinationSuccessFor(selectedPlant, soil);
-    const daysNeeded = nurseryDaysFor(soil);
+    const light = LIGHT_SOURCES.find((l) => l.id === selectedLightSource);
+    const successChance = germinationSuccessFor(selectedPlant, soil, light, tray.boosted);
+    const daysNeeded = nurseryDaysFor(soil, light, tray.boosted);
     const willFail = Math.random() > successChance;
-    removeSeed(selectedPlant.id, 1);
+    if (needsStrat) {
+      setInventory((inv) => ({ ...inv, strattedSeeds: { ...inv.strattedSeeds, [selectedPlant.id]: inv.strattedSeeds[selectedPlant.id] - 1 } }));
+    } else {
+      removeSeed(selectedPlant.id, 1);
+    }
     setTrays((prev) => prev.map((t) => (t.tid === tray.tid ? { ...t, cells: t.cells.map((c, i) => (i === cellIdx ? { plant: selectedPlant, daysIn: 0, daysNeeded, ready: false, failed: willFail } : c)) } : t)));
   }
   function clearTrayCell(tray, cellIdx) {
@@ -662,6 +745,31 @@ export default function GardenGame() {
   function deleteTray(trayId) {
     setTrays((prev) => prev.filter((t) => t.tid !== trayId));
     addLog('Removed the tray from the table.');
+  }
+  function mixBoostedSoil(soilId) {
+    if (inventory.soils[soilId] < 1) { addLog(`Need a bag of ${SOILS.find((s) => s.id === soilId).name} first.`); return; }
+    if (inventory.additives.vermiculite < 1 || inventory.additives.perlite < 1) { addLog('Need 1 vermiculite and 1 perlite to mix a boosted batch.'); return; }
+    setInventory((inv) => ({
+      ...inv,
+      soils: { ...inv.soils, [soilId]: inv.soils[soilId] - 1 },
+      additives: { ...inv.additives, vermiculite: inv.additives.vermiculite - 1, perlite: inv.additives.perlite - 1 },
+      boostedSoils: { ...inv.boostedSoils, [soilId]: inv.boostedSoils[soilId] + 1 },
+    }));
+    addLog(`Mixed a boosted bag of ${SOILS.find((s) => s.id === soilId).name} — better germination odds and speed.`);
+  }
+  function startStratification(plant) {
+    if ((inventory.seeds[plant.id] || 0) < 1) { addLog(`No ${plant.name} seed packets in inventory.`); return; }
+    removeSeed(plant.id, 1);
+    coldStratIdRef.current += 1;
+    setColdStratBatches((prev) => [...prev, { id: coldStratIdRef.current, plantId: plant.id, daysIn: 0, daysNeeded: plant.stratDays, ready: false }]);
+    addLog(`Started cold-stratifying ${plant.name} — ${plant.stratDays} days in the fridge.`);
+  }
+  function collectStratifiedSeed(batchId) {
+    const batch = coldStratBatches.find((b) => b.id === batchId);
+    if (!batch || !batch.ready) return;
+    setInventory((inv) => ({ ...inv, strattedSeeds: { ...inv.strattedSeeds, [batch.plantId]: (inv.strattedSeeds[batch.plantId] || 0) + 1 } }));
+    setColdStratBatches((prev) => prev.filter((b) => b.id !== batchId));
+    addLog(`Collected 1 stratified seed — ready for Heat/Light Germination.`);
   }
   function beginTransplant(tray, cellIdx) {
     const cell = tray.cells[cellIdx];
@@ -821,10 +929,13 @@ export default function GardenGame() {
 
       {activeTab === 'indoor' && (
         <StartIndoorTab
-          trays={trays} inventory={inventory} cash={cash} zone={zone}
+          trays={trays} inventory={inventory} zone={zone}
           selectedPlant={selectedPlant} selectedPlantId={selectedPlantId} setSelectedPlantId={setSelectedPlantId}
-          selectedTraySoil={selectedTraySoil} setSelectedTraySoil={setSelectedTraySoil}
-          placeTray={placeTray} plantTrayCell={plantTrayCell} clearTrayCell={clearTrayCell} deleteTray={deleteTray} beginTransplant={beginTransplant} log={log}
+          placeEmptyTrayOnTable={placeEmptyTrayOnTable} fillPlacedTray={fillPlacedTray}
+          plantTrayCell={plantTrayCell} clearTrayCell={clearTrayCell} deleteTray={deleteTray} beginTransplant={beginTransplant} log={log}
+          mixBoostedSoil={mixBoostedSoil} coldStratBatches={coldStratBatches} startStratification={startStratification} collectStratifiedSeed={collectStratifiedSeed}
+          selectedLightSource={selectedLightSource} setSelectedLightSource={setSelectedLightSource}
+          indoorSubTab={indoorSubTab} setIndoorSubTab={setIndoorSubTab} openTrayId={openTrayId} setOpenTrayId={setOpenTrayId}
         />
       )}
 
@@ -1078,107 +1189,281 @@ function Stepper({ count, cost, onAdd, onRemove, canAdd }) {
   );
 }
 
-function StartIndoorTab({ trays, inventory, cash, zone, selectedPlant, selectedPlantId, setSelectedPlantId, selectedTraySoil, setSelectedTraySoil, placeTray, plantTrayCell, clearTrayCell, deleteTray, beginTransplant, log }) {
+function StartIndoorTab({
+  trays, inventory, zone, selectedPlant, selectedPlantId, setSelectedPlantId,
+  placeEmptyTrayOnTable, fillPlacedTray, plantTrayCell, clearTrayCell, deleteTray, beginTransplant, log,
+  mixBoostedSoil, coldStratBatches, startStratification, collectStratifiedSeed,
+  selectedLightSource, setSelectedLightSource, indoorSubTab, setIndoorSubTab, openTrayId, setOpenTrayId,
+}) {
+  const subTabs = [
+    { id: 'table', label: 'View Table', icon: '🗂️' },
+    { id: 'soil', label: 'Make Soil', icon: '🪱' },
+    { id: 'stratify', label: 'Cold Stratification', icon: '❄️' },
+    { id: 'germinate', label: 'Heat/Light Germination', icon: '💡' },
+  ];
+  const openTray = trays.find((t) => t.tid === openTrayId) || null;
+
   return (
-    <div style={styles.mainArea}>
-      <div style={styles.yardPanel}>
-        <div style={styles.panelTitle}>Trays</div>
-        <div style={styles.tableSurface}>
-          {trays.length === 0 && <div style={{ padding: 20, color: '#EDE6D6', fontStyle: 'italic', fontSize: 13 }}>No trays yet — buy one on the right.</div>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {trays.map((tray) => {
-              const soil = SOILS.find((s) => s.id === tray.soilId);
-              const cols = tray.size <= 4 ? 2 : tray.size <= 12 ? 4 : tray.size <= 32 ? 8 : 12;
-              return (
-                <div key={tray.tid} style={styles.trayBlock}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={styles.trayLabel}>{tray.size}-Cell Tray · {soil.name}</div>
-                    <button style={styles.deleteTrayBtn} onClick={() => deleteTray(tray.tid)} title="Remove this tray">✕ Remove Tray</button>
-                  </div>
-                  <div style={{ ...styles.trayGrid, gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-                    {tray.cells.map((cell, i) => (
-                      <div
-                        key={i}
-                        onClick={() => (cell?.ready ? beginTransplant(tray, i) : cell ? undefined : plantTrayCell(tray, i))}
-                        style={{ ...styles.trayCell, ...(cell?.failed ? styles.trayCellFailed : {}), ...(cell?.ready ? styles.trayCellReady : {}) }}
-                      >
-                        {cell ? (cell.failed ? '✕' : cell.ready ? '🌿' : cell.plant.emoji) : <span style={{ opacity: 0.2, fontSize: 10 }}>+</span>}
-                        {cell && !cell.ready && (
-                          <button
-                            style={styles.trayCellDeleteBtn}
-                            onClick={(e) => { e.stopPropagation(); clearTrayCell(tray, i); }}
-                            title="Remove this seed"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
+    <div style={styles.mainAreaSingle}>
+      <div style={styles.subTabRow}>
+        {subTabs.map((s) => (
+          <button key={s.id} onClick={() => setIndoorSubTab(s.id)} style={{ ...styles.subTabBtn, ...(indoorSubTab === s.id ? styles.subTabBtnActive : {}) }}>
+            {s.icon} {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ---------- VIEW TABLE ---------- */}
+      {indoorSubTab === 'table' && !openTray && (
+        <div style={styles.mainArea}>
+          <div style={styles.yardPanel}>
+            <div style={styles.panelTitle}>The Table</div>
+            <div style={styles.tableSurface}>
+              {trays.length === 0 && <div style={{ padding: 20, color: '#EDE6D6', fontStyle: 'italic', fontSize: 13 }}>No trays on the table yet. Place one from the sidebar.</div>}
+              <div style={styles.tableGrid}>
+                {trays.map((tray) => {
+                  const filled = tray.cells.filter((c) => c).length;
+                  return (
+                    <div key={tray.tid} style={styles.trayThumb} onClick={() => setOpenTrayId(tray.tid)}>
+                      <div style={{ fontSize: 22 }}>🧺</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#EDE6D6' }}>{tray.size}-cell</div>
+                      <div style={{ fontSize: 9, color: tray.soilId ? '#B8D8B8' : '#E8968A' }}>{tray.soilId ? `${filled}/${tray.size} planted` : 'needs soil'}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={styles.hint}>Click a tray to open it and add seeds. Place new trays from the sidebar.</div>
+          </div>
+          <div style={styles.sidebar}>
+            <div style={styles.shopPanel}>
+              <div style={styles.panelTitle}>Place a Tray</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {TRAY_SIZES.filter((t) => (inventory.emptyTrays[t.id] || 0) > 0).map((t) => (
+                  <button key={t.id} style={styles.seedRow} onClick={() => placeEmptyTrayOnTable(t.id)}>
+                    <span style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 700 }}>{t.slots}-cell tray</span>
+                    <span style={{ fontSize: 11, opacity: 0.7 }}>{inventory.emptyTrays[t.id]} owned</span>
+                  </button>
+                ))}
+                {TRAY_SIZES.every((t) => (inventory.emptyTrays[t.id] || 0) === 0) && (
+                  <div style={{ fontSize: 12, color: '#6b5844', fontStyle: 'italic' }}>No trays owned yet — buy some at the Plant Nursery.</div>
+                )}
+              </div>
+            </div>
+            <div style={styles.logPanel}>
+              <div style={styles.panelTitle}>Garden Log</div>
+              {log.map((l, i) => <div key={i} style={styles.logLine}>{l}</div>)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- OPEN TRAY DETAIL VIEW (from table) ---------- */}
+      {indoorSubTab === 'table' && openTray && (
+        <div style={styles.mainArea}>
+          <div style={styles.yardPanel}>
+            <button style={styles.backLink} onClick={() => setOpenTrayId(null)}>← Back to Table</button>
+            <div style={styles.trayBlock}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={styles.trayLabel}>
+                  {openTray.size}-Cell Tray {openTray.soilId ? `· ${SOILS.find((s) => s.id === openTray.soilId).name}${openTray.boosted ? ' (boosted)' : ''}` : '· no soil yet'}
+                </div>
+                <button style={styles.deleteTrayBtn} onClick={() => { deleteTray(openTray.tid); setOpenTrayId(null); }} title="Remove this tray">✕ Remove Tray</button>
+              </div>
+              {!openTray.soilId ? (
+                <div style={{ padding: 12 }}>
+                  <div style={{ fontSize: 12, color: '#EDE6D6', marginBottom: 8 }}>Pick a soil to fill this tray:</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {SOILS.map((s) => (
+                      <React.Fragment key={s.id}>
+                        <button style={styles.fillSoilBtn} disabled={inventory.soils[s.id] < 1} onClick={() => fillPlacedTray(openTray.tid, s.id, false)}>
+                          {s.name} ({inventory.soils[s.id]})
+                        </button>
+                        <button style={styles.fillSoilBtn} disabled={inventory.boostedSoils[s.id] < 1} onClick={() => fillPlacedTray(openTray.tid, s.id, true)}>
+                          Boosted {s.name} ({inventory.boostedSoils[s.id]})
+                        </button>
+                      </React.Fragment>
                     ))}
                   </div>
                 </div>
-              );
-            })}
+              ) : (
+                <>
+                  {(() => {
+                    const cols = openTray.size <= 4 ? 2 : openTray.size <= 12 ? 4 : openTray.size <= 32 ? 8 : 12;
+                    return (
+                      <div style={{ ...styles.trayGrid, gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+                        {openTray.cells.map((cell, i) => (
+                          <div
+                            key={i}
+                            onClick={() => (cell?.ready ? beginTransplant(openTray, i) : cell ? undefined : plantTrayCell(openTray, i))}
+                            style={{ ...styles.trayCell, ...(cell?.failed ? styles.trayCellFailed : {}), ...(cell?.ready ? styles.trayCellReady : {}) }}
+                          >
+                            {cell ? (cell.failed ? '✕' : cell.ready ? '🪴' : cell.plant.emoji) : <span style={{ opacity: 0.2, fontSize: 10 }}>+</span>}
+                            {cell && !cell.ready && !cell.failed && (
+                              <button style={styles.trayCellDeleteBtn} onClick={(e) => { e.stopPropagation(); clearTrayCell(openTray, i); }} title="Remove this seed">✕</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <div style={styles.hint}>
+                    {selectedPlant ? `Selected: ${selectedPlant.emoji} ${selectedPlant.name} — tap empty cells to plant it.` : 'Pick a seed on the right, then tap tray cells.'}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          <div style={styles.sidebar}>
+            {!selectedLightSource && (
+              <div style={styles.warnBanner}>Pick a light source below — required before starting any seeds.</div>
+            )}
+            <div style={styles.shopPanel}>
+              <div style={styles.panelTitle}>Light Source</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {LIGHT_SOURCES.map((l) => (
+                  <button key={l.id} onClick={() => setSelectedLightSource(l.id)} style={{ ...styles.seedRow, ...(selectedLightSource === l.id ? styles.seedRowActive : {}) }}>
+                    <span style={{ fontSize: 18 }}>{l.icon}</span>
+                    <span style={{ flex: 1, textAlign: 'left', marginLeft: 8 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>{l.name}</div>
+                      <div style={{ fontSize: 9, opacity: 0.7 }}>{l.desc}</div>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={styles.shopPanel}>
+              <div style={styles.panelTitle}>Seed to Plant</div>
+              <div style={styles.seedList}>
+                {PLANTS.filter((p) => (p.stratDays > 0 ? (inventory.strattedSeeds[p.id] || 0) > 0 : (inventory.seeds[p.id] || 0) > 0)).map((p) => {
+                  const growable = canGrowInZone(p, zone.tempProfile);
+                  const stock = p.stratDays > 0 ? inventory.strattedSeeds[p.id] || 0 : inventory.seeds[p.id] || 0;
+                  return (
+                    <button key={p.id} onClick={() => setSelectedPlantId(p.id)} disabled={!growable} style={{ ...styles.seedRow, ...(selectedPlantId === p.id ? styles.seedRowActive : {}), opacity: growable ? 1 : 0.35 }}>
+                      <span style={{ fontSize: 18 }}>{p.emoji}</span>
+                      <span style={{ flex: 1, textAlign: 'left', marginLeft: 8 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}{p.stratDays > 0 ? ' 🧊' : ''}</div>
+                        <div style={{ fontSize: 10, opacity: 0.7 }}>{stock} ready</div>
+                      </span>
+                    </button>
+                  );
+                })}
+                {PLANTS.every((p) => (p.stratDays > 0 ? (inventory.strattedSeeds[p.id] || 0) === 0 : (inventory.seeds[p.id] || 0) === 0)) && (
+                  <div style={{ fontSize: 12, color: '#6b5844', fontStyle: 'italic' }}>No seeds ready. Buy some, or finish Cold Stratification for 🧊 plants.</div>
+                )}
+              </div>
+            </div>
+            <div style={styles.logPanel}>
+              <div style={styles.panelTitle}>Garden Log</div>
+              {log.map((l, i) => <div key={i} style={styles.logLine}>{l}</div>)}
+            </div>
           </div>
         </div>
-        <div style={styles.hint}>
-          {selectedPlant ? `Selected: ${selectedPlant.emoji} ${selectedPlant.name} — tap empty cells to plant it, tap several in a row. Small ✕ on a planted cell removes that seed.` : 'Pick a seed on the right, then tap tray cells.'}
-        </div>
-      </div>
+      )}
 
-      <div style={styles.sidebar}>
-        <div style={styles.shopPanel}>
-          <div style={styles.panelTitle}>Fill a Tray (from inventory)</div>
-          <div style={{ fontSize: 11, color: '#6b5844', marginBottom: 8 }}>Soil to fill it with:</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* ---------- MAKE SOIL ---------- */}
+      {indoorSubTab === 'soil' && (
+        <div style={styles.mainAreaSingle}>
+          <p style={{ fontSize: 12, color: '#6b5844', marginBottom: 14 }}>
+            Mix a base soil bag with vermiculite and perlite to make a boosted batch — better germination odds and faster sprouting.
+            Base soil and additives are bought at the Plant Nursery.
+          </p>
+          <div style={styles.shopGrid}>
             {SOILS.map((s) => (
-              <div key={s.id} onClick={() => setSelectedTraySoil(s.id)} style={{ ...styles.soilPickRow, ...(selectedTraySoil === s.id ? styles.soilPickRowActive : {}) }}>
-                <span style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>{s.name}</span>
-                <span style={{ fontSize: 11, opacity: 0.7 }}>owned: {inventory.soils[s.id]}</span>
+              <div key={s.id} style={styles.shopCard}>
+                <div style={{ fontWeight: 700, fontFamily: serif }}>{s.name}</div>
+                <div style={{ fontSize: 10, color: '#6b5844', margin: '6px 0' }}>base: {inventory.soils[s.id]} · boosted: {inventory.boostedSoils[s.id]}</div>
+                <div style={{ fontSize: 10, color: '#4A3728', marginBottom: 8 }}>uses 1 {s.name} + 1 vermiculite + 1 perlite</div>
+                <button
+                  style={styles.buyBtn}
+                  onClick={() => mixBoostedSoil(s.id)}
+                  disabled={inventory.soils[s.id] < 1 || inventory.additives.vermiculite < 1 || inventory.additives.perlite < 1}
+                >
+                  Mix a Boosted Bag
+                </button>
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-            {TRAY_SIZES.filter((t) => (inventory.emptyTrays[t.id] || 0) > 0).map((t) => (
-              <button key={t.id} style={styles.seedRow} onClick={() => placeTray(t.id, selectedTraySoil)}>
-                <span style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 700 }}>{t.slots}-cell tray</span>
-                <span style={{ fontSize: 11, opacity: 0.7 }}>{inventory.emptyTrays[t.id]} owned</span>
-              </button>
-            ))}
-            {TRAY_SIZES.every((t) => (inventory.emptyTrays[t.id] || 0) === 0) && (
-              <div style={{ fontSize: 12, color: '#6b5844', fontStyle: 'italic' }}>No trays owned yet — buy some at the Plant Nursery.</div>
-            )}
+          <div style={{ fontSize: 11, color: '#6b5844', marginTop: 14 }}>
+            🟤 Vermiculite owned: {inventory.additives.vermiculite} · ⚪ Perlite owned: {inventory.additives.perlite}
           </div>
-          {inventory.soils[selectedTraySoil] < 1 && (
-            <div style={{ fontSize: 11, color: '#A33', marginTop: 6 }}>No {SOILS.find((s) => s.id === selectedTraySoil).name} in inventory — buy some at the Plant Nursery.</div>
-          )}
         </div>
+      )}
 
-        <div style={styles.shopPanel}>
-          <div style={styles.panelTitle}>Seed to Plant (from inventory)</div>
-          <div style={styles.seedList}>
-            {PLANTS.filter((p) => (inventory.seeds[p.id] || 0) > 0).map((p) => {
-              const growable = canGrowInZone(p, zone.tempProfile);
-              return (
-                <button key={p.id} onClick={() => setSelectedPlantId(p.id)} disabled={!growable} style={{ ...styles.seedRow, ...(selectedPlantId === p.id ? styles.seedRowActive : {}), opacity: growable ? 1 : 0.35 }}>
-                  <span style={{ fontSize: 18 }}>{p.emoji}</span>
-                  <span style={{ flex: 1, textAlign: 'left', marginLeft: 8 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
-                    <div style={{ fontSize: 10, opacity: 0.7 }}>{inventory.seeds[p.id]} in stock</div>
-                  </span>
+      {/* ---------- COLD STRATIFICATION ---------- */}
+      {indoorSubTab === 'stratify' && (
+        <div style={styles.mainArea}>
+          <div style={styles.yardPanel}>
+            <div style={styles.panelTitle}>Cold Stratification (the fridge)</div>
+            <div style={styles.tableSurface}>
+              {coldStratBatches.length === 0 && <div style={{ padding: 20, color: '#EDE6D6', fontStyle: 'italic', fontSize: 13 }}>Nothing stratifying right now.</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {coldStratBatches.map((b) => {
+                  const plant = PLANTS.find((p) => p.id === b.plantId);
+                  return (
+                    <div key={b.id} style={styles.stratRow}>
+                      <span style={{ fontSize: 18 }}>{plant.emoji}</span>
+                      <span style={{ flex: 1, marginLeft: 8, fontSize: 12, color: '#EDE6D6' }}>
+                        {plant.name} — {b.ready ? 'ready!' : `${b.daysIn}/${b.daysNeeded} days cold`}
+                      </span>
+                      {b.ready && <button style={styles.transplantBtnSmall} onClick={() => collectStratifiedSeed(b.id)}>Collect</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={styles.hint}>Seeds marked 🧊 need this before they can germinate. Takes weeks — plan ahead.</div>
+          </div>
+          <div style={styles.sidebar}>
+            <div style={styles.shopPanel}>
+              <div style={styles.panelTitle}>Start Stratifying</div>
+              <div style={styles.seedList}>
+                {PLANTS.filter((p) => p.stratDays > 0 && (inventory.seeds[p.id] || 0) > 0).map((p) => (
+                  <button key={p.id} style={styles.seedRow} onClick={() => startStratification(p)}>
+                    <span style={{ fontSize: 18 }}>{p.emoji}</span>
+                    <span style={{ flex: 1, textAlign: 'left', marginLeft: 8 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
+                      <div style={{ fontSize: 10, opacity: 0.7 }}>{p.stratDays} days · {inventory.seeds[p.id]} seeds in stock</div>
+                    </span>
+                  </button>
+                ))}
+                {PLANTS.filter((p) => p.stratDays > 0).every((p) => (inventory.seeds[p.id] || 0) === 0) && (
+                  <div style={{ fontSize: 12, color: '#6b5844', fontStyle: 'italic' }}>No stratification-needing seeds in stock. Buy Lavender, Milkweed, Oregano, or Sage seeds at the Plant Nursery.</div>
+                )}
+              </div>
+            </div>
+            <div style={styles.logPanel}>
+              <div style={styles.panelTitle}>Garden Log</div>
+              {log.map((l, i) => <div key={i} style={styles.logLine}>{l}</div>)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- HEAT/LIGHT GERMINATION (info + shortcut) ---------- */}
+      {indoorSubTab === 'germinate' && (
+        <div style={styles.mainAreaSingle}>
+          <p style={{ fontSize: 12, color: '#6b5844', marginBottom: 10, maxWidth: 560 }}>
+            Every seed germinates here — pick a light source, then open a tray from the View Table tab to plant. Seeds needing Cold
+            Stratification must finish that step first.
+          </p>
+          <div style={styles.shopGrid}>
+            {LIGHT_SOURCES.map((l) => (
+              <div key={l.id} style={{ ...styles.shopCard, ...(selectedLightSource === l.id ? { boxShadow: 'inset 0 0 0 2px #5C7A4F' } : {}) }}>
+                <div style={{ fontSize: 26 }}>{l.icon}</div>
+                <div style={{ fontWeight: 700, marginTop: 4 }}>{l.name}</div>
+                <div style={{ fontSize: 10, color: '#6b5844', margin: '6px 0', minHeight: 44 }}>{l.desc}</div>
+                <button style={styles.buyBtn} onClick={() => setSelectedLightSource(l.id)}>
+                  {selectedLightSource === l.id ? 'Selected' : 'Select'}
                 </button>
-              );
-            })}
-            {PLANTS.every((p) => (inventory.seeds[p.id] || 0) === 0) && (
-              <div style={{ fontSize: 12, color: '#6b5844', fontStyle: 'italic' }}>No seed packets yet — buy some at the Plant Nursery.</div>
-            )}
+              </div>
+            ))}
           </div>
+          <button style={{ ...styles.startBtn, marginTop: 16, maxWidth: 240, padding: '10px 0', fontSize: 13 }} onClick={() => setIndoorSubTab('table')}>
+            Go to View Table →
+          </button>
         </div>
-
-        <div style={styles.logPanel}>
-          <div style={styles.panelTitle}>Garden Log</div>
-          {log.map((l, i) => <div key={i} style={styles.logLine}>{l}</div>)}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1214,6 +1499,7 @@ function YardTab({
   function renderSquareContent(sq) {
     if (!sq) return <span style={{ opacity: 0.15, fontSize: 9 }}>+</span>;
     const subCols = Math.ceil(Math.sqrt(sq.perSqFt || 1));
+    const stage = !sq.dead && !sq.harvested ? growthStageFor(sq.age, sq.daysToMature) : null;
     return (
       <>
         <div style={{ ...styles.miniGrid, gridTemplateColumns: `repeat(${subCols}, 1fr)` }}>
@@ -1223,6 +1509,11 @@ function YardTab({
             </span>
           ))}
         </div>
+        {stage && (stage.id === 'ready' || stage.id === 'oversized' || stage.id === 'dying') && (
+          <div style={{ ...styles.stageBadge, ...(stage.id === 'oversized' ? styles.stageBadgeWarn : {}), ...(stage.id === 'dying' ? styles.stageBadgeDanger : {}) }} title={stage.label}>
+            {stage.icon}
+          </div>
+        )}
         {!sq.dead && !sq.harvested && (
           <div style={styles.healthBarWrap}>
             <div style={{ ...styles.healthBarFill, width: `${sq.health}%`, background: sq.health > 60 ? '#5C7A4F' : sq.health > 30 ? '#C16B3D' : '#A33' }} />
@@ -1632,7 +1923,12 @@ const styles = {
   sqftCellEmpty: { background: 'rgba(92,122,79,0.35)' },
 
   bedOverlay: { position: 'absolute', background: '#B98452', backgroundImage: 'repeating-linear-gradient(90deg, #B98452, #B98452 5px, #A9764A 5px, #A9764A 10px)', border: '2px solid #6b4a2c', borderRadius: 2, padding: 2 },
-  bedOverlayAluminum: { background: '#B8C0C8', backgroundImage: 'repeating-linear-gradient(90deg, #C7CED4, #C7CED4 5px, #A9B2BA 5px, #A9B2BA 10px)', border: '2px solid #7C868E' },
+  bedOverlayAluminum: {
+    background: '#CDD3D8',
+    backgroundImage: 'repeating-linear-gradient(90deg, #E8ECEF 0px, #E8ECEF 2px, #B4BCC2 2px, #B4BCC2 4px, #9AA3AA 4px, #9AA3AA 5px)',
+    border: '2px solid #7C868E',
+    boxShadow: 'inset 0 0 4px rgba(255,255,255,0.6)',
+  },
   barrelOverlay: { position: 'absolute', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, cursor: 'pointer', background: 'rgba(61,43,31,0.12)', borderRadius: '50%' },
   spigotOverlay: { position: 'absolute', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, cursor: 'pointer', background: 'rgba(143,166,184,0.18)', borderRadius: '50%' },
   sourceOn: { boxShadow: '0 0 0 3px #5C9BD5, 0 0 10px 2px rgba(92,155,213,0.7)', background: 'rgba(92,155,213,0.25)' },
@@ -1647,6 +1943,9 @@ const styles = {
   sqftCellTransplantTarget: { background: 'rgba(143,166,184,0.5)' },
   miniGrid: { display: 'grid', gap: 0, width: '90%', height: '90%', alignItems: 'center', justifyItems: 'center' },
   healthBarWrap: { position: 'absolute', bottom: 1, left: '10%', width: '80%', height: 2, background: 'rgba(0,0,0,0.3)', borderRadius: 2 },
+  stageBadge: { position: 'absolute', top: -3, right: -3, fontSize: 10, background: '#5C7A4F', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 1px #fff' },
+  stageBadgeWarn: { background: '#C16B3D' },
+  stageBadgeDanger: { background: '#A33' },
   healthBarFill: { height: '100%', borderRadius: 2 },
   hint: { marginTop: 10, fontSize: 12, color: '#6b5844', fontStyle: 'italic' },
 
@@ -1669,6 +1968,13 @@ const styles = {
   tableSurface: { background: '#8b6b47', backgroundImage: 'repeating-linear-gradient(90deg, #8b6b47, #8b6b47 8px, #7d5f3f 8px, #7d5f3f 16px)', border: '2px solid #4A3728', borderRadius: 4, padding: 14, minHeight: 200 },
   trayBlock: { background: 'rgba(0,0,0,0.15)', borderRadius: 4, padding: 10 },
   trayLabel: { fontSize: 11, fontWeight: 700, color: '#EDE6D6', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
+  tableGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 10 },
+  trayThumb: { background: 'rgba(0,0,0,0.2)', borderRadius: 4, padding: 10, textAlign: 'center', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.15)' },
+  backLink: { background: 'none', border: 'none', color: '#4A3728', fontWeight: 700, fontSize: 12, cursor: 'pointer', marginBottom: 8, padding: 0, textDecoration: 'underline' },
+  fillSoilBtn: { background: '#F7F2E7', border: '1px solid #B8A98A', borderRadius: 3, padding: '6px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#4A3728' },
+  warnBanner: { background: '#E8968A', color: '#3D2B1F', fontSize: 11, fontWeight: 700, padding: '8px 10px', borderRadius: 4, marginBottom: 4 },
+  stratRow: { display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 4, padding: '8px 10px' },
+  transplantBtnSmall: { background: '#5C7A4F', color: '#fff', border: 'none', borderRadius: 3, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
   trayGrid: { display: 'grid', gap: 3 },
   trayCell: { aspectRatio: '1', background: '#3D2B1F', border: '1px solid #241a12', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', minWidth: 20, fontSize: 13, position: 'relative' },
   trayCellDeleteBtn: { position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: '50%', background: '#A33', color: '#fff', border: '1px solid #241a12', fontSize: 8, lineHeight: '12px', cursor: 'pointer', padding: 0 },
