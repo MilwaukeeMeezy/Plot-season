@@ -51,6 +51,7 @@ const ADDITIVES = [
   { id: 'vermiculite', name: 'Vermiculite', icon: '🟤', cost: 5, desc: 'Improves water retention in soil mixes.' },
   { id: 'perlite', name: 'Perlite', icon: '⚪', cost: 5, desc: 'Improves drainage and aeration in soil mixes.' },
   { id: 'coir', name: 'Coconut Coir', icon: '🥥', cost: 4, desc: 'A renewable peat-moss alternative for moisture retention.' },
+  { id: 'manure', name: 'Manure', icon: '🟫', cost: 4, desc: 'Aged organic manure. Boosts nutrients — great mixed into compost or native soil for beds.' },
 ];
 const PLANT_LIGHT = { id: 'light', name: 'Grow Light', icon: '💡', cost: 35, desc: 'Supplemental light for indoor trays. Helps seedlings that need more sun than a windowsill gives.' };
 const PLANT_FOOD = { id: 'food', name: 'Plant Food', icon: '🧪', cost: 8, desc: 'General-purpose fertilizer. A boost for hungry, heavy-feeding plants.' };
@@ -80,9 +81,11 @@ const ZONES = [
 ];
 
 const SOILS = [
-  { id: 'starting', name: 'Seed-Starting Mix', cost: 6, desc: 'Light, sterile, fine-textured. Best odds and speed for most seedlings.', speedMult: 1, baseSuccess: 0.95 },
-  { id: 'potting', name: 'Potting Soil', cost: 4, desc: 'Richer and heavier. Fine for many seedlings, a bit slower to germinate.', speedMult: 1.25, baseSuccess: 0.85 },
-  { id: 'garden', name: 'Garden Soil', cost: 2, desc: 'Dense, can compact. Cheapest, but riskiest for starting tender seeds.', speedMult: 1.6, baseSuccess: 0.65 },
+  { id: 'starting', name: 'Seed-Starting Mix', cost: 6, desc: 'Light, sterile, fine-textured. Best odds and speed for most seedlings.', speedMult: 1, baseSuccess: 0.95, groundOk: false },
+  { id: 'potting', name: 'Potting Soil', cost: 4, desc: 'Richer and heavier. Fine for many seedlings, a bit slower to germinate.', speedMult: 1.25, baseSuccess: 0.85, groundOk: false },
+  { id: 'garden', name: 'Garden Soil', cost: 2, desc: 'Dense, can compact. Cheapest, but riskiest for starting tender seeds.', speedMult: 1.6, baseSuccess: 0.65, groundOk: false },
+  { id: 'compost', name: 'Compost', cost: 5, desc: 'Rich, organic, nutrient-dense. Excellent for beds and ground planting — not ideal for delicate seed starting.', speedMult: 1.4, baseSuccess: 0.6, groundOk: true },
+  { id: 'native', name: 'Native Soil', cost: 1, desc: "The dirt that's already there. Free-ish, but benefits a lot from added organic matter like manure.", speedMult: 1.5, baseSuccess: 0.55, groundOk: true },
 ];
 
 const TRAY_SIZES = [
@@ -164,6 +167,9 @@ export default function GardenGame() {
   const [pipes, setPipes] = useState([]); // PVC pipe runs only: {id, type: 'pvc', x0, y0, x1, y1}
   const pipeIdRef = useRef(0);
   const [pipeStart, setPipeStart] = useState(null); // {x, y} while placing a pipe run
+  const [groundSoilTiles, setGroundSoilTiles] = useState([]); // {gx, gy, soilId, boosted} - ground squares filled with soil
+  const [selectedFillSoil, setSelectedFillSoil] = useState(null);
+  const [selectedFillBoosted, setSelectedFillBoosted] = useState(false);
   const [dragStart, setDragStart] = useState(null);
   const [dragCurrent, setDragCurrent] = useState(null);
   const [selectedPlantId, setSelectedPlantId] = useState(null);
@@ -174,14 +180,14 @@ export default function GardenGame() {
   const trayIdRef = useRef(0);
 
   const [inventory, setInventory] = useState({
-    seeds: {}, livePlants: {}, soils: { starting: 0, potting: 0, garden: 0 }, emptyTrays: {},
-    boostedSoils: { starting: 0, potting: 0, garden: 0 }, // soil bags mixed with vermiculite/perlite
+    seeds: {}, livePlants: {}, soils: { starting: 0, potting: 0, garden: 0, compost: 0, native: 0 }, emptyTrays: {},
+    boostedSoils: { starting: 0, potting: 0, garden: 0, compost: 0, native: 0 }, // soil bags mixed with amendments
     strattedSeeds: {}, // plantId -> count of seeds that finished cold stratification, ready to germinate
     woodSqFt: 0, aluminumSqFt: 0,
     waterTools: { can: 0 },
     pvcFeet: 0, spigots: 0,
     rainBarrels: 0, rainBarrelGallons: 0,
-    additives: { vermiculite: 0, perlite: 0, coir: 0 },
+    additives: { vermiculite: 0, perlite: 0, coir: 0, manure: 0 },
     lights: 0, plantFood: 0,
   });
   const [coldStratBatches, setColdStratBatches] = useState([]); // {id, plantId, daysIn, daysNeeded, ready}
@@ -523,7 +529,7 @@ export default function GardenGame() {
     }
     setInventory((inv) => ({ ...inv, [stockKey]: inv[stockKey] - sqFtNeeded }));
     bedIdRef.current += 1;
-    setBeds((prev) => [...prev, { id: bedIdRef.current, x: x0, y: y0, w, h, material: selectedBuildMaterial, plants: [] }]);
+    setBeds((prev) => [...prev, { id: bedIdRef.current, x: x0, y: y0, w, h, material: selectedBuildMaterial, soilId: null, boosted: false, plants: [] }]);
     addLog(`Built a ${w}'×${h}' ${stockLabel} bed using ${sqFtNeeded} sq ft of ${stockLabel}.`);
   }
   function deleteBed(bedId) {
@@ -587,6 +593,13 @@ export default function GardenGame() {
   function plantAt(kind, targetId, sx, sy) {
     if (!selectedPlant) { addLog('Pick a seed or plant first, then click squares.'); return; }
     if (!canGrowInZone(selectedPlant, zone.tempProfile)) { addLog(`${selectedPlant.name} won't survive in ${zone.name}.`); return; }
+    if (kind === 'bed') {
+      const bed = beds.find((b) => b.id === targetId);
+      if (!bed || !bed.soilId) { addLog('Add soil to this bed first — pick a soil in the sidebar, then click the bed.'); return; }
+    } else {
+      const tile = groundSoilTiles.find((t) => t.gx === sx && t.gy === sy);
+      if (!tile) { addLog('This ground square needs soil first — pick Compost or Native Soil in the sidebar, then click here.'); return; }
+    }
     if (!canUseSource(selectedPlant, selectedSource)) {
       addLog(`You don't have any ${selectedSource === 'seed' ? 'seed packets' : 'live plants'} for ${selectedPlant.name}. Buy some from the Plant Nursery.`);
       return;
@@ -606,6 +619,26 @@ export default function GardenGame() {
     }
     addLog(`Planted ${selectedPlant.name} (${selectedSource === 'seed' ? 'seed' : 'live plant'}).`);
   }
+  function fillBedSoil(bedId, soilId, useBoosted) {
+    const soil = SOILS.find((s) => s.id === soilId);
+    const stock = useBoosted ? inventory.boostedSoils[soilId] : inventory.soils[soilId];
+    if (stock < 1) { addLog(`No ${useBoosted ? 'boosted ' : ''}${soil.name} in inventory.`); return; }
+    if (useBoosted) setInventory((inv) => ({ ...inv, boostedSoils: { ...inv.boostedSoils, [soilId]: inv.boostedSoils[soilId] - 1 } }));
+    else setInventory((inv) => ({ ...inv, soils: { ...inv.soils, [soilId]: inv.soils[soilId] - 1 } }));
+    setBeds((prev) => prev.map((b) => (b.id === bedId ? { ...b, soilId, boosted: !!useBoosted } : b)));
+    addLog(`Added ${useBoosted ? 'boosted ' : ''}${soil.name} to the bed.`);
+  }
+  function fillGroundSoil(gx, gy, soilId, useBoosted) {
+    if (groundSoilTiles.some((t) => t.gx === gx && t.gy === gy)) { addLog('This ground square already has soil.'); return; }
+    const soil = SOILS.find((s) => s.id === soilId);
+    if (!soil.groundOk) { addLog(`${soil.name} isn't suited for open ground — use Compost or Native Soil.`); return; }
+    const stock = useBoosted ? inventory.boostedSoils[soilId] : inventory.soils[soilId];
+    if (stock < 1) { addLog(`No ${useBoosted ? 'boosted ' : ''}${soil.name} in inventory.`); return; }
+    if (useBoosted) setInventory((inv) => ({ ...inv, boostedSoils: { ...inv.boostedSoils, [soilId]: inv.boostedSoils[soilId] - 1 } }));
+    else setInventory((inv) => ({ ...inv, soils: { ...inv.soils, [soilId]: inv.soils[soilId] - 1 } }));
+    setGroundSoilTiles((prev) => [...prev, { gx, gy, soilId, boosted: !!useBoosted }]);
+    addLog(`Added ${useBoosted ? 'boosted ' : ''}${soil.name} to the ground.`);
+  }
 
   function getBedSquare(bed, sx, sy) { return bed.plants.find((p) => p.sx === sx && p.sy === sy) || null; }
   function getGroundSquare(gx, gy) { return groundPlants.find((p) => p.gx === gx && p.gy === gy) || null; }
@@ -618,6 +651,12 @@ export default function GardenGame() {
       completeTransplant('bed', bedId, sx, sy);
       return;
     }
+    if (mode === 'soil') {
+      if (bed.soilId) { addLog('This bed already has soil.'); return; }
+      if (!selectedFillSoil) { addLog('Pick a soil type in the sidebar first.'); return; }
+      fillBedSoil(bedId, selectedFillSoil, selectedFillBoosted);
+      return;
+    }
     if (sq && (sq.dead || sq.harvested)) { setBeds((prev) => prev.map((b) => (b.id === bedId ? { ...b, plants: b.plants.filter((p) => !(p.sx === sx && p.sy === sy)) } : b))); return; }
     if (sq && !sq.dead && !sq.harvested && sq.age >= sq.daysToMature) { harvestBedSquare(bedId, sx, sy); return; }
     if (!sq && mode === 'plant') plantAt('bed', bedId, sx, sy);
@@ -628,6 +667,11 @@ export default function GardenGame() {
     if (pendingTransplant) {
       if (sq) { addLog('Square occupied.'); return; }
       completeTransplant('ground', null, gx, gy);
+      return;
+    }
+    if (mode === 'soil') {
+      if (!selectedFillSoil) { addLog('Pick a soil type in the sidebar first.'); return; }
+      fillGroundSoil(gx, gy, selectedFillSoil, selectedFillBoosted);
       return;
     }
     if (sq && (sq.dead || sq.harvested)) { setGroundPlants((prev) => prev.filter((p) => !(p.gx === gx && p.gy === gy))); return; }
@@ -747,15 +791,22 @@ export default function GardenGame() {
     addLog('Removed the tray from the table.');
   }
   function mixBoostedSoil(soilId) {
-    if (inventory.soils[soilId] < 1) { addLog(`Need a bag of ${SOILS.find((s) => s.id === soilId).name} first.`); return; }
-    if (inventory.additives.vermiculite < 1 || inventory.additives.perlite < 1) { addLog('Need 1 vermiculite and 1 perlite to mix a boosted batch.'); return; }
+    const soil = SOILS.find((s) => s.id === soilId);
+    if (inventory.soils[soilId] < 1) { addLog(`Need a bag of ${soil.name} first.`); return; }
+    const useManureRecipe = soil.groundOk; // compost/native get manure+coir; germination soils get vermiculite+perlite
+    const need1 = useManureRecipe ? 'manure' : 'vermiculite';
+    const need2 = useManureRecipe ? 'coir' : 'perlite';
+    if (inventory.additives[need1] < 1 || inventory.additives[need2] < 1) {
+      addLog(`Need 1 ${need1} and 1 ${need2} to mix a boosted batch of ${soil.name}.`);
+      return;
+    }
     setInventory((inv) => ({
       ...inv,
       soils: { ...inv.soils, [soilId]: inv.soils[soilId] - 1 },
-      additives: { ...inv.additives, vermiculite: inv.additives.vermiculite - 1, perlite: inv.additives.perlite - 1 },
+      additives: { ...inv.additives, [need1]: inv.additives[need1] - 1, [need2]: inv.additives[need2] - 1 },
       boostedSoils: { ...inv.boostedSoils, [soilId]: inv.boostedSoils[soilId] + 1 },
     }));
-    addLog(`Mixed a boosted bag of ${SOILS.find((s) => s.id === soilId).name} — better germination odds and speed.`);
+    addLog(`Mixed a boosted bag of ${soil.name} with ${need1} and ${need2} — better results.`);
   }
   function startStratification(plant) {
     if ((inventory.seeds[plant.id] || 0) < 1) { addLog(`No ${plant.name} seed packets in inventory.`); return; }
@@ -957,6 +1008,8 @@ export default function GardenGame() {
           barrels={barrels} deleteBarrel={deleteBarrel} toggleBarrel={toggleBarrel}
           spigots={spigots} deleteSpigot={deleteSpigot} toggleSpigot={toggleSpigot}
           pipes={pipes} deletePipe={deletePipe} pipeStart={pipeStart} pvcIsConnected={pvcIsConnected}
+          groundSoilTiles={groundSoilTiles} selectedFillSoil={selectedFillSoil} setSelectedFillSoil={setSelectedFillSoil}
+          selectedFillBoosted={selectedFillBoosted} setSelectedFillBoosted={setSelectedFillBoosted}
           enabledMethods={enabledMethods}
           setQuizOpen={setQuizOpen} log={log} score={score}
         />
@@ -1189,6 +1242,33 @@ function Stepper({ count, cost, onAdd, onRemove, canAdd }) {
   );
 }
 
+// Small CSS-drawn dark soil/mulch texture swatch, used in place of an emoji since no emoji closely
+// resembles crumbly dark soil. Layered radial gradients in brown tones mimic the chunky texture.
+function SoilSwatch({ size = 20 }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: size,
+        height: size,
+        borderRadius: 3,
+        verticalAlign: 'middle',
+        backgroundColor: '#2E2620',
+        backgroundImage: [
+          'radial-gradient(circle at 20% 30%, #4A3B2E 0 18%, transparent 19%)',
+          'radial-gradient(circle at 55% 20%, #5C4A38 0 16%, transparent 17%)',
+          'radial-gradient(circle at 80% 40%, #3A2F24 0 20%, transparent 21%)',
+          'radial-gradient(circle at 30% 65%, #4A3B2E 0 17%, transparent 18%)',
+          'radial-gradient(circle at 65% 70%, #5C4A38 0 19%, transparent 20%)',
+          'radial-gradient(circle at 85% 85%, #3A2F24 0 15%, transparent 16%)',
+          'radial-gradient(circle at 10% 85%, #4A3B2E 0 14%, transparent 15%)',
+        ].join(', '),
+        border: '1px solid #241C16',
+      }}
+    />
+  );
+}
+
 function StartIndoorTab({
   trays, inventory, zone, selectedPlant, selectedPlantId, setSelectedPlantId,
   placeEmptyTrayOnTable, fillPlacedTray, plantTrayCell, clearTrayCell, deleteTray, beginTransplant, log,
@@ -1197,7 +1277,7 @@ function StartIndoorTab({
 }) {
   const subTabs = [
     { id: 'table', label: 'View Table', icon: '🗂️' },
-    { id: 'soil', label: 'Make Soil', icon: '🪱' },
+    { id: 'soil', label: 'Make Soil', icon: null },
     { id: 'stratify', label: 'Cold Stratification', icon: '❄️' },
     { id: 'germinate', label: 'Heat/Light Germination', icon: '💡' },
   ];
@@ -1208,7 +1288,7 @@ function StartIndoorTab({
       <div style={styles.subTabRow}>
         {subTabs.map((s) => (
           <button key={s.id} onClick={() => setIndoorSubTab(s.id)} style={{ ...styles.subTabBtn, ...(indoorSubTab === s.id ? styles.subTabBtnActive : {}) }}>
-            {s.icon} {s.label}
+            {s.icon ? s.icon : <SoilSwatch size={14} />} {s.label}
           </button>
         ))}
       </div>
@@ -1364,28 +1444,34 @@ function StartIndoorTab({
       {/* ---------- MAKE SOIL ---------- */}
       {indoorSubTab === 'soil' && (
         <div style={styles.mainAreaSingle}>
-          <p style={{ fontSize: 12, color: '#6b5844', marginBottom: 14 }}>
-            Mix a base soil bag with vermiculite and perlite to make a boosted batch — better germination odds and faster sprouting.
-            Base soil and additives are bought at the Plant Nursery.
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <SoilSwatch size={28} />
+            <p style={{ fontSize: 12, color: '#6b5844', margin: 0 }}>
+              Mix a base soil bag with amendments to make a boosted batch. Seed-Starting/Potting/Garden Soil use
+              vermiculite + perlite (better germination). Compost/Native Soil use manure + coconut coir (better for beds
+              and ground). Base soil and additives are bought at the Plant Nursery.
+            </p>
+          </div>
           <div style={styles.shopGrid}>
-            {SOILS.map((s) => (
-              <div key={s.id} style={styles.shopCard}>
-                <div style={{ fontWeight: 700, fontFamily: serif }}>{s.name}</div>
-                <div style={{ fontSize: 10, color: '#6b5844', margin: '6px 0' }}>base: {inventory.soils[s.id]} · boosted: {inventory.boostedSoils[s.id]}</div>
-                <div style={{ fontSize: 10, color: '#4A3728', marginBottom: 8 }}>uses 1 {s.name} + 1 vermiculite + 1 perlite</div>
-                <button
-                  style={styles.buyBtn}
-                  onClick={() => mixBoostedSoil(s.id)}
-                  disabled={inventory.soils[s.id] < 1 || inventory.additives.vermiculite < 1 || inventory.additives.perlite < 1}
-                >
-                  Mix a Boosted Bag
-                </button>
-              </div>
-            ))}
+            {SOILS.map((s) => {
+              const need1 = s.groundOk ? 'manure' : 'vermiculite';
+              const need2 = s.groundOk ? 'coir' : 'perlite';
+              const canMix = inventory.soils[s.id] >= 1 && inventory.additives[need1] >= 1 && inventory.additives[need2] >= 1;
+              return (
+                <div key={s.id} style={styles.shopCard}>
+                  <SoilSwatch size={24} />
+                  <div style={{ fontWeight: 700, fontFamily: serif, marginTop: 4 }}>{s.name}{s.groundOk ? ' 🌍' : ''}</div>
+                  <div style={{ fontSize: 10, color: '#6b5844', margin: '6px 0' }}>base: {inventory.soils[s.id]} · boosted: {inventory.boostedSoils[s.id]}</div>
+                  <div style={{ fontSize: 10, color: '#4A3728', marginBottom: 8 }}>uses 1 {s.name} + 1 {need1} + 1 {need2}</div>
+                  <button style={styles.buyBtn} onClick={() => mixBoostedSoil(s.id)} disabled={!canMix}>
+                    Mix a Boosted Bag
+                  </button>
+                </div>
+              );
+            })}
           </div>
           <div style={{ fontSize: 11, color: '#6b5844', marginTop: 14 }}>
-            🟤 Vermiculite owned: {inventory.additives.vermiculite} · ⚪ Perlite owned: {inventory.additives.perlite}
+            🟤 Vermiculite: {inventory.additives.vermiculite} · ⚪ Perlite: {inventory.additives.perlite} · 🥥 Coir: {inventory.additives.coir} · 🟫 Manure: {inventory.additives.manure}
           </div>
         </div>
       )}
@@ -1476,6 +1562,7 @@ function YardTab({
   selectedBuildMaterial, setSelectedBuildMaterial, barrels, deleteBarrel, toggleBarrel,
   spigots, deleteSpigot, toggleSpigot,
   pipes, deletePipe, pipeStart, pvcIsConnected,
+  groundSoilTiles, selectedFillSoil, setSelectedFillSoil, selectedFillBoosted, setSelectedFillBoosted,
   enabledMethods, setQuizOpen, log, score,
 }) {
   const dragRect = (() => {
@@ -1531,6 +1618,7 @@ function YardTab({
             <button onClick={() => setMode('build')} style={{ ...styles.modeBtn, ...(mode === 'build' ? styles.modeBtnActive : {}) }}>🪵 Build</button>
           )}
           <button onClick={() => setMode('plant')} style={{ ...styles.modeBtn, ...(mode === 'plant' ? styles.modeBtnActive : {}) }}>🌱 Plant</button>
+          <button onClick={() => setMode('soil')} style={{ ...styles.modeBtn, ...(mode === 'soil' ? styles.modeBtnActive : {}) }}>🪱 Soil</button>
           <button onClick={() => setMode('water')} style={{ ...styles.modeBtn, ...(mode === 'water' ? styles.modeBtnActive : {}) }}>💧 Water</button>
           <button style={styles.quizBtn} onClick={() => setQuizOpen(true)}>📋 Soil Quiz</button>
         </div>
@@ -1542,6 +1630,7 @@ function YardTab({
               const onBed = beds.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h);
               const onBarrel = barrels.some((br) => br.x === x && br.y === y);
               const groundSq = !onBed && !onBarrel ? getGroundSquare(x, y) : null;
+              const groundTile = !onBed && !onBarrel ? groundSoilTiles.find((t) => t.gx === x && t.gy === y) : null;
               const isPipeStart = pipeStart && pipeStart.x === x && pipeStart.y === y;
               return (
                 <div
@@ -1558,7 +1647,12 @@ function YardTab({
                       else waterAllGround();
                     } else if (enabledMethods.sow) clickGroundSquare(x, y);
                   }}
-                  style={{ ...styles.cell, ...(inDrag ? styles.cellDragPreview : {}), ...(isPipeStart ? styles.cellPipeStart : {}), ...(!onBed && !onBarrel && enabledMethods.sow && mode === 'plant' && !groundSq ? styles.sqftCellEmpty : {}) }}
+                  style={{
+                    ...styles.cell, ...(inDrag ? styles.cellDragPreview : {}), ...(isPipeStart ? styles.cellPipeStart : {}),
+                    ...(groundTile ? styles.cellSoiled : {}),
+                    ...(!onBed && !onBarrel && enabledMethods.sow && mode === 'plant' && !groundSq && groundTile ? styles.sqftCellEmpty : {}),
+                  }}
+                  title={!onBed && !onBarrel && !groundTile && mode !== 'water' ? 'No soil here yet' : undefined}
                 >
                   {!onBed && !onBarrel && groundSq && <div style={styles.groundSquareInner}>{renderSquareContent(groundSq)}</div>}
                 </div>
@@ -1617,7 +1711,9 @@ function YardTab({
           {beds.map((bed) => (
             <div key={bed.id} style={{ ...styles.bedOverlay, ...(bed.material === 'aluminum' ? styles.bedOverlayAluminum : {}), left: bed.x * CELL_PX, top: bed.y * CELL_PX, width: bed.w * CELL_PX, height: bed.h * CELL_PX }}>
               {mode === 'build' && <button style={styles.deleteBedBtn} onClick={(e) => { e.stopPropagation(); deleteBed(bed.id); }}>✕</button>}
-              <div style={styles.bedDims}>{bed.w}'×{bed.h}'</div>
+              <div style={styles.bedDims}>
+                {bed.w}'×{bed.h}' {bed.soilId ? `· ${SOILS.find((s) => s.id === bed.soilId)?.name}${bed.boosted ? ' (boosted)' : ''}` : <span style={{ color: '#A33' }}>· needs soil</span>}
+              </div>
               <div style={{ ...styles.sqftGrid, gridTemplateColumns: `repeat(${bed.w}, 1fr)`, gridTemplateRows: `repeat(${bed.h}, 1fr)` }} onClick={() => { if (mode === 'water' && selectedWaterTool && selectedWaterTool !== 'can') { if (selectedWaterTool === 'pvc' && !pvcHasOnSource) return; if (tryUseBarrelWater(selectedWaterTool)) waterBed(bed.id); } }}>
                 {Array.from({ length: bed.h }).map((_, sy) =>
                   Array.from({ length: bed.w }).map((_, sx) => {
@@ -1634,7 +1730,7 @@ function YardTab({
                           if (selectedWaterTool === 'can') waterSquare('bed', bed.id, sx, sy);
                           else waterBed(bed.id);
                         }}
-                        style={{ ...styles.sqftCell, ...(!sq && mode === 'plant' ? styles.sqftCellEmpty : {}), ...(!sq && pendingTransplant ? styles.sqftCellTransplantTarget : {}) }}
+                        style={{ ...styles.sqftCell, ...(bed.soilId ? styles.sqftCellSoiled : {}), ...(!sq && mode === 'plant' ? styles.sqftCellEmpty : {}), ...(!sq && pendingTransplant ? styles.sqftCellTransplantTarget : {}) }}
                       >
                         {renderSquareContent(sq)}
                       </div>
@@ -1657,7 +1753,12 @@ function YardTab({
           <div style={styles.hint}>
             {pendingTransplant ? `Click an empty square to transplant ${pendingTransplant.plant.name}.` :
               selectedPlant ? `Selected: ${selectedPlant.emoji} ${selectedPlant.name} (${selectedSource === 'seed' ? 'seed' : 'live plant'}) — click squares to plant, click several in a row.` :
-              'Pick a seed/plant and source in the sidebar, then click squares (open ground works too if Direct Sow is enabled).'}
+              'Pick a seed/plant and source in the sidebar, then click squares. Beds and ground both need soil added first (Soil mode).'}
+          </div>
+        )}
+        {mode === 'soil' && (
+          <div style={styles.hint}>
+            {!selectedFillSoil ? 'Pick a soil type in the sidebar first.' : `Click a bed (whole bed fills at once) or a ground square (fills just that square) to add ${SOILS.find((s) => s.id === selectedFillSoil)?.name}.`}
           </div>
         )}
         {mode === 'water' && (
@@ -1670,6 +1771,44 @@ function YardTab({
       </div>
 
       <div style={styles.sidebar}>
+        {mode === 'soil' && (
+          <div style={styles.shopPanel}>
+            <div style={styles.panelTitle}>Soil to Add</div>
+            <div style={{ fontSize: 10, color: '#6b5844', marginBottom: 8 }}>Any soil works in beds. Only Compost and Native Soil work on open ground.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {SOILS.map((s) => {
+                const baseStock = inventory.soils[s.id] || 0;
+                const boostedStock = inventory.boostedSoils[s.id] || 0;
+                if (baseStock < 1 && boostedStock < 1) return null;
+                return (
+                  <React.Fragment key={s.id}>
+                    {baseStock > 0 && (
+                      <button
+                        onClick={() => { setSelectedFillSoil(s.id); setSelectedFillBoosted(false); }}
+                        style={{ ...styles.seedRow, ...(selectedFillSoil === s.id && !selectedFillBoosted ? styles.seedRowActive : {}) }}
+                      >
+                        <span style={{ flex: 1, textAlign: 'left', fontSize: 12, fontWeight: 700 }}>{s.name}{s.groundOk ? ' 🌍' : ''}</span>
+                        <span style={{ fontSize: 10, opacity: 0.7 }}>{baseStock} owned</span>
+                      </button>
+                    )}
+                    {boostedStock > 0 && (
+                      <button
+                        onClick={() => { setSelectedFillSoil(s.id); setSelectedFillBoosted(true); }}
+                        style={{ ...styles.seedRow, ...(selectedFillSoil === s.id && selectedFillBoosted ? styles.seedRowActive : {}) }}
+                      >
+                        <span style={{ flex: 1, textAlign: 'left', fontSize: 12, fontWeight: 700 }}>Boosted {s.name}{s.groundOk ? ' 🌍' : ''}</span>
+                        <span style={{ fontSize: 10, opacity: 0.7 }}>{boostedStock} owned</span>
+                      </button>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+              {SOILS.every((s) => (inventory.soils[s.id] || 0) < 1 && (inventory.boostedSoils[s.id] || 0) < 1) && (
+                <div style={{ fontSize: 12, color: '#6b5844', fontStyle: 'italic' }}>No soil in inventory — buy or make some in the Start Indoor tab / Plant Nursery.</div>
+              )}
+            </div>
+          </div>
+        )}
         {mode === 'build' && enabledMethods.beds && (
           <div style={styles.shopPanel}>
             <div style={styles.panelTitle}>Building Material</div>
@@ -1921,6 +2060,8 @@ const styles = {
   cellDragPreview: { background: 'rgba(92,122,79,0.45)' },
   groundSquareInner: { width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   sqftCellEmpty: { background: 'rgba(92,122,79,0.35)' },
+  cellSoiled: { background: 'repeating-linear-gradient(135deg, #5C4A38, #5C4A38 6px, #4A3A2A 6px, #4A3A2A 12px)' },
+  sqftCellSoiled: { background: 'rgba(74,58,42,0.5)' },
 
   bedOverlay: { position: 'absolute', background: '#B98452', backgroundImage: 'repeating-linear-gradient(90deg, #B98452, #B98452 5px, #A9764A 5px, #A9764A 10px)', border: '2px solid #6b4a2c', borderRadius: 2, padding: 2 },
   bedOverlayAluminum: {
