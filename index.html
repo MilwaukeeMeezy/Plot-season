@@ -25,6 +25,52 @@
       document.body.appendChild(plotSeasonScript);
     };
     document.body.appendChild(rankScript);
+
+    // The rank tracker owns the rank content, but the badge itself belongs inside the
+    // game's real top header row. Moving the same node here keeps it with Cash/Save/
+    // Settings instead of letting it behave like a separate floating overlay.
+    function anchorGardenerRankInHeader() {
+      const obsolete = document.getElementById('gardener-rank-badge-guaranteed');
+      if (obsolete) obsolete.remove();
+
+      const badge = document.getElementById('gardener-rank-badge');
+      if (!badge) return;
+
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const saveButton = buttons.find((button) => (button.textContent || '').trim().includes('Save'));
+      if (!saveButton || !saveButton.parentElement || !saveButton.parentElement.parentElement) return;
+
+      const topBarRight = saveButton.parentElement;
+      const topBarMainRow = topBarRight.parentElement;
+
+      if (badge.parentElement !== topBarMainRow) {
+        topBarMainRow.appendChild(badge);
+      }
+
+      topBarMainRow.style.position = 'relative';
+      Object.assign(badge.style, {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        right: 'auto',
+        transform: 'translate(-50%, -50%)',
+        zIndex: '2',
+        minWidth: '210px',
+        padding: '2px 14px 4px',
+        margin: '0',
+        border: '0',
+        borderRadius: '0',
+        background: 'transparent',
+        color: '#F3E6C9',
+        boxShadow: 'none',
+        textAlign: 'center',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        lineHeight: '1.1'
+      });
+    }
+
+    setInterval(anchorGardenerRankInHeader, 250);
   </script>
 </body>
 </html>
