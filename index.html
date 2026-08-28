@@ -4,11 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Plot & Season</title>
-  <link rel="stylesheet" href="./styles.css?v=20260828-1614" />
+  <link rel="stylesheet" href="./styles.css?v=20260828-1955" />
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 </head>
 <body>
+  <div id="ambient-bg" aria-hidden="true"></div>
   <div id="root"></div>
   <div id="startup-error" style="display:none;padding:20px;font-family:Arial;color:#7a1d1d;background:#fff3f3;border:2px solid #c77;margin:20px">
     <b>Plot & Season could not start.</b>
@@ -26,9 +27,14 @@
         const challengeScript = document.createElement('script');
         challengeScript.src = './challenge-goals.js?v=' + Date.now();
         challengeScript.onload = function () {
-          const plotSeasonScript = document.createElement('script');
-          plotSeasonScript.src = './app.js?v=' + Date.now();
-          document.body.appendChild(plotSeasonScript);
+          const journeyDashboardScript = document.createElement('script');
+          journeyDashboardScript.src = './journey-dashboard.js?v=' + Date.now();
+          journeyDashboardScript.onload = function () {
+            const plotSeasonScript = document.createElement('script');
+            plotSeasonScript.src = './app.js?v=' + Date.now();
+            document.body.appendChild(plotSeasonScript);
+          };
+          document.body.appendChild(journeyDashboardScript);
         };
         document.body.appendChild(challengeScript);
       };
