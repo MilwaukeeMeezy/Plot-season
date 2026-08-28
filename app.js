@@ -5674,7 +5674,6 @@ function GardenGame() {
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 15 } }, goal.title),
                     React.createElement("div", { style: { fontSize: 11, color: '#6b5844', margin: '5px 0 8px' } }, goal.desc),
                     React.createElement("div", { style: { fontWeight: 800, color: goal.value >= goal.target ? '#5C7A4F' : '#6b5844' } }, goal.value >= goal.target ? '✓ Complete' : `${goal.value}/${goal.target}`)))),
-            ),
             React.createElement("div", { style: { ...styles.shopPanel, marginTop: 14 } },
                 React.createElement("div", { style: styles.panelTitle }, "📔 Garden Journal"),
                 React.createElement("div", { style: { fontSize: 12, color: '#6b5844', marginBottom: 8 } }, "Knowledge appears here because you experienced it — not because the game handed you an encyclopedia."),
