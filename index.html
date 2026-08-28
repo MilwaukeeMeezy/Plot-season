@@ -23,9 +23,14 @@
       const celebrationScript = document.createElement('script');
       celebrationScript.src = './goal-celebrations.js?v=' + Date.now();
       celebrationScript.onload = function () {
-        const plotSeasonScript = document.createElement('script');
-        plotSeasonScript.src = './app.js?v=' + Date.now();
-        document.body.appendChild(plotSeasonScript);
+        const challengeScript = document.createElement('script');
+        challengeScript.src = './challenge-goals.js?v=' + Date.now();
+        challengeScript.onload = function () {
+          const plotSeasonScript = document.createElement('script');
+          plotSeasonScript.src = './app.js?v=' + Date.now();
+          document.body.appendChild(plotSeasonScript);
+        };
+        document.body.appendChild(challengeScript);
       };
       document.body.appendChild(celebrationScript);
     };
