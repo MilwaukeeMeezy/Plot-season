@@ -25,6 +25,74 @@
       document.body.appendChild(plotSeasonScript);
     };
     document.body.appendChild(rankScript);
+
+    // Guaranteed always-visible gardener-rank badge. This renderer lives in the page
+    // itself so it cannot be skipped by timing issues in the optional rank tracker.
+    function plotSeasonRankSnapshot() {
+      let saved = {};
+      try {
+        saved = JSON.parse(localStorage.getItem('plotandseason-gardener-ranks-v1') || '{}');
+      } catch (e) { saved = {}; }
+      const goals = saved.gardenGoals || {};
+      const history = Array.isArray(saved.seasonHistory) ? saved.seasonHistory : [];
+      const count = (min) => history.filter((s) => s && Number(s.harvestCount) > 0 && Number(s.minimumHealth) >= min).length;
+      const planted = !!saved.planted;
+      const ranks = [
+        { id:'seed', icon:'🌱', name:'Seed Starter' },
+        { id:'grower', icon:'🪴', name:'Grower' },
+        { id:'hobbyist', icon:'🌿', name:'Hobbyist / Cultivator' },
+        { id:'gardener', icon:'🌻', name:'Gardener' },
+        { id:'master', icon:'🏅', name:'Master Gardener' }
+      ];
+      let idx = 0;
+      if (planted && Number(goals.plantsWatered || 0) >= 5 && Number(goals.harvests || 0) >= 3) idx = 1;
+      if (count(60) >= 1) idx = 2;
+      if (count(70) >= 2) idx = 3;
+      if (count(80) >= 3) idx = 4;
+      let progress = 'Begin your garden journey';
+      if (idx === 0) {
+        const parts = (planted ? 1 : 0) + Math.min(Number(goals.plantsWatered || 0), 5) / 5 + Math.min(Number(goals.harvests || 0), 3) / 3;
+        progress = Math.round(parts / 3 * 100) + '% to Grower';
+      } else if (idx === 1) progress = Math.min(count(60), 1) + '/1 season at 60%+';
+      else if (idx === 2) progress = Math.min(count(70), 2) + '/2 seasons at 70%+';
+      else if (idx === 3) progress = Math.min(count(80), 3) + '/3 seasons at 80%+';
+      else progress = 'Highest rank achieved';
+      return { rank: ranks[idx], progress };
+    }
+
+    function ensureGardenerRankBadge() {
+      const navButtons = Array.from(document.querySelectorAll('button'));
+      const gameVisible = navButtons.some((b) => (b.textContent || '').includes('Garden Journey')) &&
+                          navButtons.some((b) => (b.textContent || '').includes('Yard'));
+      let badge = document.getElementById('gardener-rank-badge-guaranteed');
+      if (!gameVisible) {
+        if (badge) badge.remove();
+        return;
+      }
+      if (!badge) {
+        badge = document.createElement('button');
+        badge.id = 'gardener-rank-badge-guaranteed';
+        badge.type = 'button';
+        badge.title = 'Open Garden Journey';
+        Object.assign(badge.style, {
+          position:'fixed', top:'82px', right:'18px', zIndex:'220', minWidth:'190px',
+          padding:'8px 11px', border:'2px solid #4A3728', borderRadius:'8px',
+          background:'#FFFDF6', color:'#3D2B1F', boxShadow:'2px 2px 0 #4A3728',
+          textAlign:'left', cursor:'pointer', fontFamily:'inherit'
+        });
+        badge.onclick = function () {
+          const journey = Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').includes('Garden Journey'));
+          if (journey) journey.click();
+        };
+        document.body.appendChild(badge);
+      }
+      const snap = plotSeasonRankSnapshot();
+      badge.innerHTML = '<div style="font-size:9px;font-weight:900;letter-spacing:.7px;text-transform:uppercase;color:#6b5844">Gardener Rank</div>' +
+        '<div style="font-size:14px;font-weight:900;margin-top:1px">' + snap.rank.icon + ' ' + snap.rank.name + '</div>' +
+        '<div style="font-size:9px;color:#6b5844;margin-top:2px">' + snap.progress + '</div>';
+    }
+
+    setInterval(ensureGardenerRankBadge, 700);
   </script>
 </body>
 </html>
