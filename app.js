@@ -220,10 +220,18 @@ function seasonalFruitSummary(plant) {
     return `🌸 Bloom: ${fmt(plant.bloomMonths)} · 🧺 Harvest: ${fmt(plant.harvestMonths)}`;
 }
 const VINE_PLANT_IDS = new Set([
-    'cucumber', 'squash', 'watermelon', 'polebean', 'limabean', 'yardlongbean', 'cowpea', 'honeydew', 'canarymelon', 'luffa',
+    'cucumber', 'squash', 'watermelon', 'cantaloupe', 'polebean', 'limabean', 'yardlongbean', 'cowpea', 'honeydew', 'canarymelon', 'luffa',
     'grape', 'hardykiwi', 'sweetpotato', 'snowpea', 'fieldpea', 'trumpethoneysuckle', 'tomatoindeterminate'
 ]);
+const MELON_IDS = new Set(['watermelon', 'cantaloupe']);
+const MELON_DRY_DAY_GRACE = 2;
+const MELON_SALVAGE_DAYS = 2;
 function isViningPlant(plant) { return !!plant && VINE_PLANT_IDS.has(plant.id); }
+function isMelonPlant(plant) { return !!plant && MELON_IDS.has(plant.id); }
+function isMelonSalvageable(plant) {
+    return !!plant && isMelonPlant(plant) && plant.dead && plant.age >= plant.daysToMature &&
+        !plant.salvageExpired && Number(plant.salvageDaysLeft || 0) > 0;
+}
 const LEGUME_SOIL_BUILDERS = new Set(['bushbean', 'polebean', 'limabean', 'yardlongbean', 'cowpea', 'favabean', 'snowpea', 'fieldpea', 'crimsonclover', 'hairyvetch', 'lupine']);
 function soilBuilderProfile(plant) {
     if (!plant)
@@ -2099,7 +2107,9 @@ function GardenGame() {
             if (insideGreenhouse && weatherToday === 'heatwave' && greenhouseHasFan)
                 drop = Math.round(drop * 0.45);
             const wateredEffectively = p.wateredToday || (weatherToday === 'rain' && !insideGreenhouse);
-            let health = Math.max(0, p.health - (wateredEffectively ? 0 : drop));
+            const nextDaysUnwatered = wateredEffectively ? 0 : (p.daysUnwatered || 0) + 1;
+            const melonDeepWaterGrace = isMelonPlant(p) && nextDaysUnwatered <= MELON_DRY_DAY_GRACE;
+            let health = Math.max(0, p.health - (wateredEffectively || melonDeepWaterGrace ? 0 : drop));
             let pest = p.pest || null;
             const activeFireHere = (location === null || location === void 0 ? void 0 : location.kind) === 'ground' && activeBurn && activeBurn.ignited && cellsContain(activeBurn.fireCells || activeBurn.cells, location.x, location.y);
             const burnRecoveryHere = (location === null || location === void 0 ? void 0 : location.kind) === 'ground' && burnedAreas.some((a) => (a.daysRemaining || 0) > 0 && cellsContain(a.cells, location.x, location.y));
@@ -2187,7 +2197,7 @@ function GardenGame() {
                     needsLog.push(`✅ Beneficial bugs cleared the ${((_d = PESTS[p.pest]) === null || _d === void 0 ? void 0 : _d.name) || 'pest'} infestation on ${p.name}.`);
                 }
             }
-            const daysUnwatered = wateredEffectively ? 0 : (p.daysUnwatered || 0) + 1;
+            const daysUnwatered = nextDaysUnwatered;
             if (daysUnwatered === 7)
                 needsLog.push(`💧 ${p.emoji} ${p.name} hasn't been watered in a week — it needs water now!`);
             if (!wateredEffectively && health < 60 && health > 0)
@@ -2209,10 +2219,38 @@ function GardenGame() {
             const trellisGrowth = trellisType ? (p.id === 'tomatoindeterminate' ? Math.max(1.22, trellisType.growthMult) : trellisType.growthMult) : 1;
             const climateMatched = !insideGreenhouse || !greenhouseForPlant || greenhousePlantClimateMatch(p, greenhouseForPlant, season, weatherToday);
             const growthStep = insideGreenhouse ? (climateMatched ? (greenhouseHasGrowLight ? 1.2 : 1) : 0.25) : trellisGrowth;
+            const nextAge = p.age + growthStep;
             const vineSprawl = isViningPlant(p)
                 ? (nearbyTrellis ? Math.max(0, Number(p.vineSprawl || 0) - 2) : (!insideGreenhouse ? Math.min(6, Number(p.vineSprawl || 0) + 1) : Number(p.vineSprawl || 0)))
                 : 0;
-            return { ...p, health, pest, daysUnwatered, sellValue, hadBER, vineSprawl, age: p.age + growthStep, wateredToday: false, dead: health <= 0 };
+            let ripeAlerted = !!p.ripeAlerted;
+            if (isMelonPlant(p) && !ripeAlerted && health > 0 && nextAge >= p.daysToMature) {
+                ripeAlerted = true;
+                needsLog.push(`🧺 ${p.emoji} ${p.name} is ripe and ready to harvest now!`);
+            }
+            const newlyDead = health <= 0 && !p.dead;
+            let salvageDaysLeft = Number(p.salvageDaysLeft || 0);
+            let salvageExpired = !!p.salvageExpired;
+            let salvageExpiryLogged = !!p.salvageExpiryLogged;
+            if (isMelonPlant(p) && nextAge >= p.daysToMature && health <= 0) {
+                if (newlyDead) {
+                    salvageDaysLeft = MELON_SALVAGE_DAYS;
+                    salvageExpired = false;
+                    salvageExpiryLogged = false;
+                    needsLog.push(`🧺 ${p.emoji} ${p.name}'s vine died, but the mature fruit can still be salvaged for ${MELON_SALVAGE_DAYS} days at reduced value.`);
+                }
+                else if (!salvageExpired && salvageDaysLeft > 0) {
+                    salvageDaysLeft = Math.max(0, salvageDaysLeft - 1);
+                    if (salvageDaysLeft <= 0) {
+                        salvageExpired = true;
+                        if (!salvageExpiryLogged) {
+                            salvageExpiryLogged = true;
+                            needsLog.push(`⌛ ${p.emoji} ${p.name}'s salvage window expired — the fruit is now lost and the vine can only be composted.`);
+                        }
+                    }
+                }
+            }
+            return { ...p, health, pest, daysUnwatered, sellValue, hadBER, vineSprawl, age: nextAge, wateredToday: false, dead: health <= 0, ripeAlerted, salvageDaysLeft, salvageExpired, salvageExpiryLogged };
         };
         setBeds((prev) => prev.map((bed) => ({ ...bed, plants: bed.plants.map((p) => ageFn(p, bed.mulchId, bed.ph, { kind: 'bed', bedId: bed.id, x: p.sx, y: p.sy })) })));
         setGroundPlants((prev) => prev.map((p) => {
@@ -4501,6 +4539,10 @@ function GardenGame() {
             return;
         }
         if (sq && (sq.dead || sq.harvested)) {
+            if (isMelonSalvageable(sq)) {
+                harvestBedSquare(bedId, sx, sy);
+                return;
+            }
             if (sq.dead || sq.exhausted)
                 setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
             setBeds((prev) => prev.map((b) => (b.id === bedId ? { ...b, plants: b.plants.filter((p) => !(p.sx === sx && p.sy === sy)) } : b)));
@@ -4568,6 +4610,10 @@ function GardenGame() {
             return;
         }
         if (sq && (sq.dead || sq.harvested)) {
+            if (isMelonSalvageable(sq)) {
+                harvestGroundSquare(gx, gy);
+                return;
+            }
             if (sq.dead || sq.exhausted)
                 setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
             setGroundPlants((prev) => prev.filter((p) => !(p.gx === gx && p.gy === gy)));
@@ -4627,16 +4673,20 @@ function GardenGame() {
             addLog(`${sq.name} is between harvest seasons. ${seasonalFruitSummary(sq)}`);
             return;
         }
-        const tier = harvestQualityTier(sq.age, sq.daysToMature) || 'full';
-        const qualityMult = tier === 'full' ? 1 : tier === 'half' ? 0.5 : 0.35;
-        const sellable = tier !== 'weak';
+        const salvage = isMelonSalvageable(sq);
+        if (sq.dead && !salvage)
+            return;
+        const tier = salvage ? 'half' : (harvestQualityTier(sq.age, sq.daysToMature) || 'full');
+        const qualityMult = salvage ? 0.6 : (tier === 'full' ? 1 : tier === 'half' ? 0.5 : 0.35);
+        const sellable = salvage ? true : tier !== 'weak';
         const value = Math.round(sq.sellValue * (sq.perSqFt || 1) * qualityMult);
         basketItemIdRef.current += 1;
-        setBasketItems((prev) => { var _a; return [...prev, { id: basketItemIdRef.current, plantId: sq.id, name: sq.name, emoji: sq.emoji, value, daysIn: 0, sellable, health: Math.max(0, Math.min(100, (_a = sq.health) !== null && _a !== void 0 ? _a : 100)), qualityTier: tier, seedsAlreadyCollected: !!sq.seedsCollected }]; });
+        setBasketItems((prev) => { var _a; return [...prev, { id: basketItemIdRef.current, plantId: sq.id, name: sq.name, emoji: sq.emoji, value, daysIn: 0, sellable, health: salvage ? 45 : Math.max(0, Math.min(100, (_a = sq.health) !== null && _a !== void 0 ? _a : 100)), qualityTier: tier, salvaged: salvage, seedsAlreadyCollected: !!sq.seedsCollected }]; });
         setBeds((prev) => prev.map((b) => (b.id === bedId ? { ...b, plants: b.plants.map((p) => (p.sx === sx && p.sy === sy ? nextStateAfterHarvest(p) : p)) } : b)));
-        addLog(tier === 'full' ? `Harvested ${sq.name} at full quality into your basket (worth $${value} fresh).`
-            : tier === 'half' ? `Harvested ${sq.name} past its peak — only half value ($${value}).`
-                : `Harvested ${sq.name} weak and overdue — worth storing, but too far gone to sell.`);
+        addLog(salvage ? `🧺 Salvaged ${sq.name} after the vine died. It went into the basket at reduced value ($${value}).`
+            : tier === 'full' ? `Harvested ${sq.name} at full quality into your basket (worth $${value} fresh).`
+                : tier === 'half' ? `Harvested ${sq.name} past its peak — only half value ($${value}).`
+                    : `Harvested ${sq.name} weak and overdue — worth storing, but too far gone to sell.`);
     }
     function harvestGroundSquare(gx, gy) {
         const sq = getGroundSquare(gx, gy);
@@ -4662,16 +4712,20 @@ function GardenGame() {
             addLog(`${sq.name} is between harvest seasons. ${seasonalFruitSummary(sq)}`);
             return;
         }
-        const tier = harvestQualityTier(sq.age, sq.daysToMature) || 'full';
-        const qualityMult = tier === 'full' ? 1 : tier === 'half' ? 0.5 : 0.35;
-        const sellable = tier !== 'weak';
+        const salvage = isMelonSalvageable(sq);
+        if (sq.dead && !salvage)
+            return;
+        const tier = salvage ? 'half' : (harvestQualityTier(sq.age, sq.daysToMature) || 'full');
+        const qualityMult = salvage ? 0.6 : (tier === 'full' ? 1 : tier === 'half' ? 0.5 : 0.35);
+        const sellable = salvage ? true : tier !== 'weak';
         const value = Math.round(sq.sellValue * (sq.perSqFt || 1) * qualityMult);
         basketItemIdRef.current += 1;
-        setBasketItems((prev) => { var _a; return [...prev, { id: basketItemIdRef.current, plantId: sq.id, name: sq.name, emoji: sq.emoji, value, daysIn: 0, sellable, health: Math.max(0, Math.min(100, (_a = sq.health) !== null && _a !== void 0 ? _a : 100)), qualityTier: tier, seedsAlreadyCollected: !!sq.seedsCollected }]; });
+        setBasketItems((prev) => { var _a; return [...prev, { id: basketItemIdRef.current, plantId: sq.id, name: sq.name, emoji: sq.emoji, value, daysIn: 0, sellable, health: salvage ? 45 : Math.max(0, Math.min(100, (_a = sq.health) !== null && _a !== void 0 ? _a : 100)), qualityTier: tier, salvaged: salvage, seedsAlreadyCollected: !!sq.seedsCollected }]; });
         setGroundPlants((prev) => prev.map((p) => (p.gx === gx && p.gy === gy ? nextStateAfterHarvest(p) : p)));
-        addLog(tier === 'full' ? `Harvested ${sq.name} at full quality into your basket (worth $${value} fresh).`
-            : tier === 'half' ? `Harvested ${sq.name} past its peak — only half value ($${value}).`
-                : `Harvested ${sq.name} weak and overdue — worth storing, but too far gone to sell.`);
+        addLog(salvage ? `🧺 Salvaged ${sq.name} after the vine died. It went into the basket at reduced value ($${value}).`
+            : tier === 'full' ? `Harvested ${sq.name} at full quality into your basket (worth $${value} fresh).`
+                : tier === 'half' ? `Harvested ${sq.name} past its peak — only half value ($${value}).`
+                    : `Harvested ${sq.name} weak and overdue — worth storing, but too far gone to sell.`);
     }
     function collectSeedsFromBedSquare(bedId, sx, sy) {
         const bed = beds.find((b) => b.id === bedId);
@@ -7475,8 +7529,10 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                 if (tier === 'weak')
                     return React.createElement("button", { type: "button", style: styles.stageBadgeCritical, onClick: (e) => { e.stopPropagation(); if (onHarvest)
                             onHarvest(); }, title: "Weak harvest \u2014 click here to harvest for storage." }, "!");
+                if (isMelonSalvageable(sq))
+                    return React.createElement("button", { type: "button", style: { ...styles.stageBadgeWarn, cursor: 'pointer' }, onClick: (e) => { e.stopPropagation(); if (onHarvest) onHarvest(); }, title: `Vine died, but ripe fruit can still be salvaged for ${sq.salvageDaysLeft} more day${sq.salvageDaysLeft === 1 ? '' : 's'} at reduced value.` }, "🧺");
                 if (sq.dead)
-                    return React.createElement("div", { style: styles.stageBadgeDanger, title: "Dead \u2014 can only be cleared for compost." }, "\uD83D\uDC80");
+                    return React.createElement("div", { style: styles.stageBadgeDanger, title: isMelonPlant(sq) && sq.salvageExpired ? "Salvage window expired — fruit lost; clear for compost." : "Dead \u2014 can only be cleared for compost." }, "\uD83D\uDC80");
                 return null;
             })(),
             !sq.dead && !sq.harvested && sq.daysUnwatered >= 7 && (React.createElement("div", { style: styles.unwateredBadge, title: "Unwatered for a week or more \u2014 water this plant!" }, "!")),
