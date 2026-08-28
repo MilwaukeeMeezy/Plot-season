@@ -5577,6 +5577,16 @@ function GardenGame() {
     }
     const activePestTargets = getActivePestTargets();
     const season = SEASONS[seasonIdx];
+    const journeyGoals = [
+        { id: 'water5', title: '🌱 Learn Your Plants', desc: 'Water 5 individual plants by hand.', tip: 'Use the watering can and click each plant.', value: gardenGoals.plantsWatered || 0, target: 5 },
+        { id: 'harvest3', title: '🥕 From Soil to Basket', desc: 'Bring 3 crops successfully to harvest.', tip: 'Healthy crops harvested near maturity give the best value.', value: gardenGoals.harvests || 0, target: 3 },
+        { id: 'compost1', title: '♻️ Waste Nothing', desc: 'Start your first compost batch.', tip: 'Weeds and dead plants are resources, not trash.', value: gardenGoals.compostStarted || 0, target: 1 },
+        { id: 'water25', title: '💧 Learn the Watering Rhythm', desc: 'Water 25 plants by hand.', tip: 'Different crops tolerate dry periods differently.', value: gardenGoals.plantsWatered || 0, target: 25 },
+        { id: 'harvest10', title: '🌿 Season Grower', desc: 'Complete 10 successful harvests.', tip: 'Try more than one crop and watch their different maturity times.', value: gardenGoals.harvests || 0, target: 10 },
+        { id: 'harvest25', title: '🌻 Garden Steward', desc: 'Complete 25 successful harvests.', tip: 'A productive garden comes from planning, observation, and recovery.', value: gardenGoals.harvests || 0, target: 25 },
+    ];
+    const activeJourneyGoals = journeyGoals.filter((g) => g.value < g.target).slice(0, 3);
+    const completedJourneyGoals = journeyGoals.filter((g) => g.value >= g.target).length;
     const tabs = [
         { id: 'nursery', label: 'Plant Nursery', icon: '🏬' },
         { id: 'extension', label: 'Extension', icon: '🏛️' },
@@ -5637,49 +5647,34 @@ function GardenGame() {
             const openPond = ponds.find((p) => p.id === pondOpenId);
             return openPond ? React.createElement(PondModal, { pond: openPond, inventory: inventory, onStockFish: stockPondFish, onRemoveFish: removePondFish, onClose: () => setPondOpenId(null) }) : null;
         })(),
-        !pestEncounter && activeTab === 'goals' && (() => {
-            const journeyGoals = [
-                { id: 'water5', title: '🌱 Learn Your Plants', desc: 'Water 5 individual plants by hand.', tip: 'Use the watering can and click each plant.', value: gardenGoals.plantsWatered || 0, target: 5 },
-                { id: 'harvest3', title: '🥕 From Soil to Basket', desc: 'Bring 3 crops successfully to harvest.', tip: 'Healthy crops harvested near maturity give the best value.', value: gardenGoals.harvests || 0, target: 3 },
-                { id: 'compost1', title: '♻️ Waste Nothing', desc: 'Start your first compost batch.', tip: 'Weeds and dead plants are resources, not trash.', value: gardenGoals.compostStarted || 0, target: 1 },
-                { id: 'water25', title: '💧 Learn the Watering Rhythm', desc: 'Water 25 plants by hand.', tip: 'Different crops tolerate dry periods differently.', value: gardenGoals.plantsWatered || 0, target: 25 },
-                { id: 'harvest10', title: '🌿 Season Grower', desc: 'Complete 10 successful harvests.', tip: 'Try more than one crop and watch their different maturity times.', value: gardenGoals.harvests || 0, target: 10 },
-                { id: 'harvest25', title: '🌻 Garden Steward', desc: 'Complete 25 successful harvests.', tip: 'A productive garden comes from planning, observation, and recovery.', value: gardenGoals.harvests || 0, target: 25 },
-            ];
-            const incomplete = journeyGoals.filter((g) => g.value < g.target);
-            const activeGoals = incomplete.slice(0, 3);
-            const completedCount = journeyGoals.length - incomplete.length;
-            return React.createElement("div", { style: { padding: 18, maxWidth: 1050, margin: '0 auto' } },
+        !pestEncounter && activeTab === 'goals' && React.createElement("div", { style: { padding: 18, maxWidth: 1050, margin: '0 auto' } },
             React.createElement("div", { style: styles.panelTitle }, "🏆 Your Garden Journey"),
-            React.createElement("div", { style: { color: '#6b5844', marginBottom: 14, fontSize: 13 } }, "Learn by doing. Finish the active goals below and new lessons will move into your journey."),
+            React.createElement("div", { style: { color: '#6b5844', marginBottom: 14, fontSize: 13 } }, "Learn by doing. Finish active goals and new lessons will move into your journey."),
             React.createElement("div", { style: { ...styles.shopPanel, marginBottom: 14, background: '#FFF8DF' } },
                 React.createElement("div", { style: { fontWeight: 900, fontSize: 15, marginBottom: 8 } }, "🎯 Active Goals"),
-                activeGoals.length === 0
+                activeJourneyGoals.length === 0
                     ? React.createElement("div", { style: { fontWeight: 800, color: '#5C7A4F' } }, "✓ Phase 1 goals complete — your garden is thriving!")
                     : React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 10 } },
-                        activeGoals.map((goal, index) => {
-                            const pct = Math.min(100, Math.round((goal.value / goal.target) * 100));
-                            return React.createElement("div", { key: goal.id, style: { border: index === 0 ? '2px solid #78966B' : '1px solid #C9B98F', borderRadius: 8, background: '#FFFDF6', padding: 11 } },
-                                React.createElement("div", { style: { fontWeight: 900, fontSize: 14 } }, index === 0 ? 'NEXT · ' : '', goal.title),
-                                React.createElement("div", { style: { fontSize: 11, color: '#6b5844', marginTop: 4 } }, goal.desc),
-                                React.createElement("div", { style: { height: 8, background: '#E5DDCC', borderRadius: 99, overflow: 'hidden', marginTop: 9 } },
-                                    React.createElement("div", { style: { width: `${pct}%`, height: '100%', background: '#78966B' } })),
-                                React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, marginTop: 4 } },
-                                    React.createElement("span", null, goal.tip),
-                                    React.createElement("span", null, goal.value, "/", goal.target)));
-                        })),
-                React.createElement("div", { style: { fontSize: 10, color: '#6b5844', marginTop: 9 } }, completedCount, " of ", journeyGoals.length, " journey goals completed.")),
+                        activeJourneyGoals.map((goal, index) => React.createElement("div", { key: goal.id, style: { border: index === 0 ? '2px solid #78966B' : '1px solid #C9B98F', borderRadius: 8, background: '#FFFDF6', padding: 11 } },
+                            React.createElement("div", { style: { fontWeight: 900, fontSize: 14 } }, index === 0 ? 'NEXT · ' : '', goal.title),
+                            React.createElement("div", { style: { fontSize: 11, color: '#6b5844', marginTop: 4 } }, goal.desc),
+                            React.createElement("div", { style: { height: 8, background: '#E5DDCC', borderRadius: 99, overflow: 'hidden', marginTop: 9 } },
+                                React.createElement("div", { style: { width: Math.min(100, Math.round((goal.value / goal.target) * 100)) + '%', height: '100%', background: '#78966B' } })),
+                            React.createElement("div", { style: { fontSize: 10, color: '#6b5844', marginTop: 5 } }, goal.tip),
+                            React.createElement("div", { style: { fontSize: 10, fontWeight: 800, marginTop: 3 } }, goal.value, "/", goal.target)))),
+                React.createElement("div", { style: { fontSize: 10, color: '#6b5844', marginTop: 9 } }, completedJourneyGoals, " of ", journeyGoals.length, " journey goals completed.")),
             React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12 } },
                 journeyGoals.map((goal) => React.createElement("div", { key: goal.id, style: { ...styles.shopPanel, margin: 0, opacity: goal.value >= goal.target ? 0.72 : 1 } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 15 } }, goal.title),
                     React.createElement("div", { style: { fontSize: 11, color: '#6b5844', margin: '5px 0 8px' } }, goal.desc),
-                    React.createElement("div", { style: { fontWeight: 800, color: goal.value >= goal.target ? '#5C7A4F' : '#6b5844' } }, goal.value >= goal.target ? '✓ Complete' : `${goal.value}/${goal.target}`)))),
+                    React.createElement("div", { style: { fontWeight: 800, color: goal.value >= goal.target ? '#5C7A4F' : '#6b5844' } }, goal.value >= goal.target ? '✓ Complete' : goal.value + '/' + goal.target)))),
             React.createElement("div", { style: { ...styles.shopPanel, marginTop: 14 } },
                 React.createElement("div", { style: styles.panelTitle }, "📔 Garden Journal"),
                 React.createElement("div", { style: { fontSize: 12, color: '#6b5844', marginBottom: 8 } }, "Knowledge appears here because you experienced it — not because the game handed you an encyclopedia."),
                 React.createElement("div", { style: { fontSize: 12, lineHeight: 1.7 } },
-                    Object.keys(discovered).length ? `${Object.keys(discovered).length} discoveries recorded. Keep growing, harvesting, saving seed, composting, managing pests, and experimenting with soil and water.` : 'Your journal is blank. Plant something and begin experimenting.'))));
-        })(),
+                    Object.keys(discovered).length
+                        ? Object.keys(discovered).length + " discoveries recorded. Keep growing, harvesting, saving seed, composting, managing pests, and experimenting with soil and water."
+                        : "Your journal is blank. Plant something and begin experimenting."))),
         !pestEncounter && activeTab === 'character' && (React.createElement(CharacterTab, { avatar: avatar, inventory: inventory, equippedClothes: equippedClothes, setEquippedClothes: setEquippedClothes, showAvatarInYard: showAvatarInYard, setShowAvatarInYard: setShowAvatarInYard, onUpdateGardener: () => { setEditingGardenerFromGame(true); setScreen('avatar'); } })),
         !pestEncounter && activeTab === 'catalog' && React.createElement(CatalogTab, { discovered: discovered }),
         !pestEncounter && activeTab === 'sunmap' && React.createElement(SunMapTab, null),
