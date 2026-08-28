@@ -3735,7 +3735,15 @@ function GardenGame() {
             addLog('Need at least a start and end point.');
             return;
         }
-        const feetNeeded = pipeRunFeet(pipeWaypoints);
+        const candidatePipe = { id: -1, type: 'pvc', points: pipeWaypoints, feet: pipeRunFeet(pipeWaypoints) };
+        const joinsExisting = pipes.some((p) => pipeRunsTouch(candidatePipe, p));
+        const touchesOwnSource = pipeWaypoints.some((pt) => pointTouchesSource(pt));
+        const touchesOwnBed = pipeWaypoints.some((pt) => validBedConnector(pt) || pointTouchesBed(pt));
+        if (pipes.length > 0 && !joinsExisting && !touchesOwnSource && !touchesOwnBed) {
+            addLog('This PVC run is not connected yet. Touch an existing PVC line, a water source, or a bed before finishing the run.');
+            return;
+        }
+        const feetNeeded = candidatePipe.feet;
         const elbows = Math.max(0, pipeWaypoints.length - 2);
         const elbowCost = elbows * ELBOW_COST;
         if ((inventory.pvcFeet || 0) < feetNeeded) {
@@ -3752,8 +3760,10 @@ function GardenGame() {
         pipeIdRef.current += 1;
         setPipes((prev) => [...prev, { id: pipeIdRef.current, type: 'pvc', points: pipeWaypoints, feet: feetNeeded }]);
         setPipeWaypoints([]);
-        setSelectedBuildMaterial(null);
-        addLog(`Laid ${feetNeeded}ft of PVC${elbows > 0 ? ` with ${elbows} elbow${elbows === 1 ? '' : 's'} ($${elbowCost})` : ''}. PVC placement is finished — select PVC again if you want to lay another run.`);
+        // Keep PVC selected while the player is building an irrigation network so branches
+        // can be added without returning to the catalog after every completed run.
+        setSelectedBuildMaterial('pvc');
+        addLog(`Laid ${feetNeeded}ft of PVC${elbows > 0 ? ` with ${elbows} elbow${elbows === 1 ? '' : 's'} ($${elbowCost})` : ''}.${joinsExisting ? ' Connected to the existing watering system.' : ''} PVC remains selected so you can add another branch; choose another tool or Cancel when finished.`);
     }
     function cancelPipeRun() {
         setPipeWaypoints([]);
