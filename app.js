@@ -1423,6 +1423,7 @@ function GardenGame() {
     const [openTrayId, setOpenTrayId] = useState(null);
     const [discovered, setDiscovered] = useState({});
     const [score, setScore] = useState(0);
+    const [gardenGoals, setGardenGoals] = useState({ harvests: 0, compostStarted: 0, plantsWatered: 0 });
     const [log, setLog] = useState(['Welcome to the garden.']);
     const [quizOpen, setQuizOpen] = useState(false);
     const [soilHealthOpen, setSoilHealthOpen] = useState(false);
@@ -1519,7 +1520,7 @@ function GardenGame() {
             basketSizeId, basketItems,
             coldStratBatches, compostBatches,
             soilTestRequests, masterGardenerRequests,
-            discovered, log,
+            discovered, gardenGoals, log,
             daySeconds, musicVolume, selectedTrackId,
         };
         const ok = await persistSave(SAVE_KEY, data);
@@ -1606,6 +1607,7 @@ function GardenGame() {
         setSoilTestRequests(data.soilTestRequests || []);
         setMasterGardenerRequests(data.masterGardenerRequests || []);
         setDiscovered(data.discovered || {});
+        setGardenGoals(data.gardenGoals || { harvests: 0, compostStarted: 0, plantsWatered: 0 });
         setLog(data.log || []);
         if (data.daySeconds)
             setDaySeconds(data.daySeconds);
@@ -4720,6 +4722,8 @@ function GardenGame() {
         basketItemIdRef.current += 1;
         setBasketItems((prev) => { var _a; return [...prev, { id: basketItemIdRef.current, plantId: sq.id, name: sq.name, emoji: sq.emoji, value, daysIn: 0, sellable, health: salvage ? 45 : Math.max(0, Math.min(100, (_a = sq.health) !== null && _a !== void 0 ? _a : 100)), qualityTier: tier, salvaged: salvage, seedsAlreadyCollected: !!sq.seedsCollected }]; });
         setBeds((prev) => prev.map((b) => (b.id === bedId ? { ...b, plants: b.plants.map((p) => (p.sx === sx && p.sy === sy ? nextStateAfterHarvest(p) : p)) } : b)));
+        setGardenGoals((g) => ({ ...g, harvests: (g.harvests || 0) + 1 }));
+        markDiscovered(`harvest-${sq.id}`);
         addLog(salvage ? `🧺 Salvaged ${sq.name} after the vine died. It went into the basket at reduced value ($${value}).`
             : tier === 'full' ? `Harvested ${sq.name} at full quality into your basket (worth $${value} fresh).`
                 : tier === 'half' ? `Harvested ${sq.name} past its peak — only half value ($${value}).`
@@ -4759,6 +4763,8 @@ function GardenGame() {
         basketItemIdRef.current += 1;
         setBasketItems((prev) => { var _a; return [...prev, { id: basketItemIdRef.current, plantId: sq.id, name: sq.name, emoji: sq.emoji, value, daysIn: 0, sellable, health: salvage ? 45 : Math.max(0, Math.min(100, (_a = sq.health) !== null && _a !== void 0 ? _a : 100)), qualityTier: tier, salvaged: salvage, seedsAlreadyCollected: !!sq.seedsCollected }]; });
         setGroundPlants((prev) => prev.map((p) => (p.gx === gx && p.gy === gy ? nextStateAfterHarvest(p) : p)));
+        setGardenGoals((g) => ({ ...g, harvests: (g.harvests || 0) + 1 }));
+        markDiscovered(`harvest-${sq.id}`);
         addLog(salvage ? `🧺 Salvaged ${sq.name} after the vine died. It went into the basket at reduced value ($${value}).`
             : tier === 'full' ? `Harvested ${sq.name} at full quality into your basket (worth $${value} fresh).`
                 : tier === 'half' ? `Harvested ${sq.name} past its peak — only half value ($${value}).`
@@ -4929,6 +4935,8 @@ function GardenGame() {
                 return;
             setGroundPlants((prev) => prev.map((p) => (p.gx === sx && p.gy === sy && !p.dead && !p.harvested ? { ...p, wateredToday: true, daysUnwatered: 0, health: Math.min(100, p.health + 5) } : p)));
         }
+        setGardenGoals((g) => ({ ...g, plantsWatered: (g.plantsWatered || 0) + 1 }));
+        markDiscovered(`water-${target.id}`);
         addLog(`💧 Watered ${target.emoji || '🌱'} ${target.name} with the watering can.`);
     }
     function waterBed(bedId) {
@@ -5118,6 +5126,8 @@ function GardenGame() {
         });
         compostIdRef.current += 1;
         setCompostBatches((prev) => [...prev, { id: compostIdRef.current, daysIn: 0, daysNeeded: stats.daysNeeded, ready: false, ingredients, nutrientScore: stats.nutrientScore, yieldCount: stats.yieldCount, burnDebrisUsed }]);
+        setGardenGoals((g) => ({ ...g, compostStarted: (g.compostStarted || 0) + 1 }));
+        markDiscovered('skill-compost');
         addLog(`Started compost with ${stats.total} item${stats.total === 1 ? '' : 's'}. ${stats.balanced ? 'Balanced greens and browns are heating efficiently.' : 'It will decompose, but adding both greens and browns will speed it up.'} Estimated ${stats.daysNeeded} days.`);
     }
     function addToCompostBatch(batchId) {
@@ -5572,6 +5582,7 @@ function GardenGame() {
         { id: 'extension', label: 'Extension', icon: '🏛️' },
         enabledMethods.indoor ? { id: 'indoor', label: 'Start Indoor', icon: '🪴' } : null,
         { id: 'yard', label: 'Yard', icon: '🏡' },
+        { id: 'goals', label: 'Garden Journey', icon: '🏆' },
         { id: 'character', label: 'Character', icon: '🧑‍🌾' },
         { id: 'catalog', label: 'Garden Catalog', icon: '📖' },
         { id: 'sunmap', label: 'Chasing the Sun', icon: '☀️' },
@@ -5626,6 +5637,27 @@ function GardenGame() {
             const openPond = ponds.find((p) => p.id === pondOpenId);
             return openPond ? React.createElement(PondModal, { pond: openPond, inventory: inventory, onStockFish: stockPondFish, onRemoveFish: removePondFish, onClose: () => setPondOpenId(null) }) : null;
         })(),
+        !pestEncounter && activeTab === 'goals' && (React.createElement("div", { style: { padding: 18, maxWidth: 1050, margin: '0 auto' } },
+            React.createElement("div", { style: styles.panelTitle }, "🏆 Your Garden Journey"),
+            React.createElement("div", { style: { color: '#6b5844', marginBottom: 14, fontSize: 13 } }, "Learn by doing. Your garden journal fills itself as you discover real gardening skills."),
+            React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12 } },
+                [
+                    ['🌱 First Steps', 'Water 5 individual plants', gardenGoals.plantsWatered || 0, 5],
+                    ['🥕 First Harvests', 'Bring 3 crops successfully to harvest', gardenGoals.harvests || 0, 3],
+                    ['♻️ Waste Nothing', 'Start compost from garden waste', gardenGoals.compostStarted || 0, 1],
+                    ['🌿 Season Grower', 'Complete 10 harvests', gardenGoals.harvests || 0, 10],
+                    ['💧 Water Wise', 'Water 25 plants by hand', gardenGoals.plantsWatered || 0, 25],
+                    ['🌻 Garden Steward', 'Complete 25 harvests', gardenGoals.harvests || 0, 25],
+                ].map(([title, desc, value, target]) => React.createElement("div", { key: title, style: { ...styles.shopPanel, margin: 0 } },
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 15 } }, title),
+                    React.createElement("div", { style: { fontSize: 11, color: '#6b5844', margin: '5px 0 8px' } }, desc),
+                    React.createElement("div", { style: { fontWeight: 800, color: value >= target ? '#5C7A4F' : '#6b5844' } }, value >= target ? '✓ Complete' : `${value}/${target}`))),
+            ),
+            React.createElement("div", { style: { ...styles.shopPanel, marginTop: 14 } },
+                React.createElement("div", { style: styles.panelTitle }, "📔 Garden Journal"),
+                React.createElement("div", { style: { fontSize: 12, color: '#6b5844', marginBottom: 8 } }, "Knowledge appears here because you experienced it — not because the game handed you an encyclopedia."),
+                React.createElement("div", { style: { fontSize: 12, lineHeight: 1.7 } },
+                    Object.keys(discovered).length ? `${Object.keys(discovered).length} discoveries recorded. Keep growing, harvesting, saving seed, composting, managing pests, and experimenting with soil and water.` : 'Your journal is blank. Plant something and begin experimenting.')))),
         !pestEncounter && activeTab === 'character' && (React.createElement(CharacterTab, { avatar: avatar, inventory: inventory, equippedClothes: equippedClothes, setEquippedClothes: setEquippedClothes, showAvatarInYard: showAvatarInYard, setShowAvatarInYard: setShowAvatarInYard, onUpdateGardener: () => { setEditingGardenerFromGame(true); setScreen('avatar'); } })),
         !pestEncounter && activeTab === 'catalog' && React.createElement(CatalogTab, { discovered: discovered }),
         !pestEncounter && activeTab === 'sunmap' && React.createElement(SunMapTab, null),
