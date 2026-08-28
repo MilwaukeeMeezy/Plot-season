@@ -5597,6 +5597,46 @@ function GardenGame() {
     ];
     const activeJourneyGoals = journeyGoals.filter((g) => g.value < g.target).slice(0, 3);
     const completedJourneyGoals = journeyGoals.filter((g) => g.value >= g.target).length;
+    const beginnerLearningPath = [
+        {
+            id: 'observe', icon: '👀', title: 'Meet Your Garden', lesson: 'Observe before you act.',
+            why: 'Sun, season, space, and soil determine what will thrive.',
+            done: Object.keys(discovered).some((k) => k.startsWith('seed-') || k.startsWith('plant-') || k.startsWith('planted-')),
+            action: 'Choose a crop and learn where it belongs.'
+        },
+        {
+            id: 'plant', icon: '🌱', title: 'Plant Something', lesson: 'Give roots the right start.',
+            why: 'Planting teaches spacing, soil, and timing.',
+            done: Object.keys(discovered).some((k) => k.startsWith('planted-')),
+            action: 'Plant your first crop in a bed, ground plot, or container.'
+        },
+        {
+            id: 'water', icon: '💧', title: 'Water by Hand', lesson: 'Plants need observation, not automatic habits.',
+            why: 'Hand-watering helps you notice which plants dry out faster.',
+            done: (gardenGoals.plantsWatered || 0) >= 5,
+            action: 'Use the watering can on 5 individual plants.'
+        },
+        {
+            id: 'harvest', icon: '🧺', title: 'Harvest at the Right Time', lesson: 'Ripeness affects quality and value.',
+            why: 'Waiting too long can turn a great crop into a weak harvest.',
+            done: (gardenGoals.harvests || 0) >= 3,
+            action: 'Bring 3 healthy crops from soil to basket.'
+        },
+        {
+            id: 'compost', icon: '♻️', title: 'Return Waste to the Soil', lesson: 'A garden makes resources, not just trash.',
+            why: 'Dead plants, weeds, leaves, and other browns and greens can feed the next crop.',
+            done: (gardenGoals.compostStarted || 0) >= 1,
+            action: 'Start your first compost batch.'
+        },
+        {
+            id: 'journal', icon: '📔', title: 'Read Your Garden Journal', lesson: 'Good gardeners learn from what happened.',
+            why: 'Your journal turns experience into knowledge you can reuse next season.',
+            done: Object.keys(discovered).filter((k) => k.startsWith('harvest-') || k.startsWith('water-') || k.startsWith('seedsaved-') || k.startsWith('pest-')).length >= 3,
+            action: 'Unlock at least 3 hands-on crop discoveries.'
+        },
+    ];
+    const beginnerCompleted = beginnerLearningPath.filter((step) => step.done).length;
+    const beginnerNextIndex = beginnerLearningPath.findIndex((step) => !step.done);
 
     function renderGardenJournal() {
         const knownPlants = PLANTS.filter((p) =>
@@ -5753,6 +5793,27 @@ function GardenGame() {
         !pestEncounter && activeTab === 'goals' && React.createElement("div", { style: { padding: 18, maxWidth: 1050, margin: '0 auto' } },
             React.createElement("div", { style: styles.panelTitle }, "🏆 Your Garden Journey"),
             React.createElement("div", { style: { color: '#6b5844', marginBottom: 14, fontSize: 13 } }, "Learn by doing. Finish active goals and new lessons will move into your journey."),
+            React.createElement("div", { style: { ...styles.shopPanel, marginBottom: 14, background: '#F4F8EA' } },
+                React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' } },
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontWeight: 900, fontSize: 17 } }, "🌻 Beginner Learning Path"),
+                        React.createElement("div", { style: { fontSize: 11, color: '#6b5844', marginTop: 3 } }, "Six hands-on lessons that teach the rhythm of a real garden.")),
+                    React.createElement("div", { style: { fontWeight: 900, color: beginnerCompleted === beginnerLearningPath.length ? '#5C7A4F' : '#6b5844' } }, beginnerCompleted, "/", beginnerLearningPath.length, " complete")),
+                React.createElement("div", { style: { height: 9, background: '#E5DDCC', borderRadius: 99, overflow: 'hidden', margin: '11px 0 13px' } },
+                    React.createElement("div", { style: { width: Math.round((beginnerCompleted / beginnerLearningPath.length) * 100) + '%', height: '100%', background: '#78966B' } })),
+                React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(270px,1fr))', gap: 9 } },
+                    beginnerLearningPath.map((step, index) => {
+                        const isNext = index === beginnerNextIndex;
+                        return React.createElement("div", { key: step.id, style: { border: isNext ? '2px solid #78966B' : '1px solid #C9B98F', borderRadius: 8, padding: 11, background: step.done ? '#EEF5E8' : '#FFFDF6', opacity: step.done ? 0.78 : 1 } },
+                            React.createElement("div", { style: { display: 'flex', gap: 8, alignItems: 'flex-start' } },
+                                React.createElement("span", { style: { fontSize: 22 } }, step.done ? '✓' : step.icon),
+                                React.createElement("div", { style: { flex: 1 } },
+                                    React.createElement("div", { style: { fontWeight: 900, fontSize: 13 } }, isNext ? 'NEXT · ' : '', step.title),
+                                    React.createElement("div", { style: { fontSize: 11, fontWeight: 800, marginTop: 4 } }, step.lesson),
+                                    React.createElement("div", { style: { fontSize: 10, color: '#6b5844', lineHeight: 1.45, marginTop: 3 } }, step.why),
+                                    React.createElement("div", { style: { fontSize: 10, color: step.done ? '#5C7A4F' : '#4A3728', fontWeight: 800, marginTop: 6 } }, step.done ? 'Lesson complete' : step.action))));
+                    })),
+                beginnerCompleted === beginnerLearningPath.length && React.createElement("div", { style: { marginTop: 11, padding: 9, background: '#E6F0DE', borderRadius: 7, fontSize: 11, fontWeight: 800, color: '#4E7045' } }, "🏅 Beginner Gardener complete — you know the core loop: observe, plant, care, harvest, recycle, and learn.")),
             React.createElement("div", { style: { ...styles.shopPanel, marginBottom: 14, background: '#FFF8DF' } },
                 React.createElement("div", { style: { fontWeight: 900, fontSize: 15, marginBottom: 8 } }, "🎯 Active Goals"),
                 activeJourneyGoals.length === 0
