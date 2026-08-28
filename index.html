@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Plot & Season</title>
   <link rel="stylesheet" href="./styles.css?v=20260828-1614" />
+  <style>
+    /* The rank tracker may briefly recreate its badge during React re-renders.
+       Keep any unanchored copy invisible so only the header-owned copy can ever show. */
+    #gardener-rank-badge { visibility: hidden !important; }
+    #gardener-rank-badge[data-header-anchored="true"] { visibility: visible !important; }
+  </style>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 </head>
@@ -26,15 +32,13 @@
     };
     document.body.appendChild(rankScript);
 
-    // The rank tracker owns the rank content, but the badge itself belongs inside the
-    // game's real top header row. Moving the same node here keeps it with Cash/Save/
-    // Settings instead of letting it behave like a separate floating overlay.
+    // The rank tracker owns the content; this code owns where that one badge is allowed to appear.
     function anchorGardenerRankInHeader() {
       const obsolete = document.getElementById('gardener-rank-badge-guaranteed');
       if (obsolete) obsolete.remove();
 
-      const badge = document.getElementById('gardener-rank-badge');
-      if (!badge) return;
+      const badges = Array.from(document.querySelectorAll('#gardener-rank-badge'));
+      if (!badges.length) return;
 
       const buttons = Array.from(document.querySelectorAll('button'));
       const saveButton = buttons.find((button) => (button.textContent || '').trim().includes('Save'));
@@ -42,12 +46,17 @@
 
       const topBarRight = saveButton.parentElement;
       const topBarMainRow = topBarRight.parentElement;
+      topBarMainRow.style.position = 'relative';
+
+      // Keep exactly one copy. Any tracker-created extras are removed before they can become visible.
+      const badge = badges[0];
+      badges.slice(1).forEach((extra) => extra.remove());
 
       if (badge.parentElement !== topBarMainRow) {
+        badge.dataset.headerAnchored = 'false';
         topBarMainRow.appendChild(badge);
       }
 
-      topBarMainRow.style.position = 'relative';
       Object.assign(badge.style, {
         position: 'absolute',
         top: '50%',
@@ -68,9 +77,10 @@
         fontFamily: 'inherit',
         lineHeight: '1.1'
       });
+      badge.dataset.headerAnchored = 'true';
     }
 
-    setInterval(anchorGardenerRankInHeader, 250);
+    setInterval(anchorGardenerRankInHeader, 100);
   </script>
 </body>
 </html>
