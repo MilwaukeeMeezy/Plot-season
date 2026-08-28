@@ -4888,12 +4888,21 @@ function GardenGame() {
         addLog(`Saved ${totalSeeds} seeds from ${eligible.length} harvest${eligible.length === 1 ? '' : 's'} — Seed inventory replenished.`);
     }
     function waterSquare(kind, targetId, sx, sy) {
+        let target = null;
         if (kind === 'bed') {
+            const bed = beds.find((b) => b.id === targetId);
+            target = bed ? bed.plants.find((p) => p.sx === sx && p.sy === sy && !p.dead && !p.harvested) : null;
+            if (!target)
+                return;
             setBeds((prev) => prev.map((b) => (b.id === targetId ? { ...b, plants: b.plants.map((p) => (p.sx === sx && p.sy === sy && !p.dead && !p.harvested ? { ...p, wateredToday: true, daysUnwatered: 0, health: Math.min(100, p.health + 5) } : p)) } : b)));
         }
         else {
+            target = groundPlants.find((p) => p.gx === sx && p.gy === sy && !p.dead && !p.harvested);
+            if (!target)
+                return;
             setGroundPlants((prev) => prev.map((p) => (p.gx === sx && p.gy === sy && !p.dead && !p.harvested ? { ...p, wateredToday: true, daysUnwatered: 0, health: Math.min(100, p.health + 5) } : p)));
         }
+        addLog(`💧 Watered ${target.emoji || '🌱'} ${target.name} with the watering can.`);
     }
     function waterBed(bedId) {
         setBeds((prev) => prev.map((b) => (b.id === bedId ? { ...b, plants: b.plants.map((p) => (p.dead || p.harvested ? p : { ...p, wateredToday: true, daysUnwatered: 0, health: Math.min(100, p.health + 5) })) } : b)));
@@ -7567,12 +7576,14 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                         React.createElement("button", { onClick: () => {
                                 var _a;
                                 setMode('water');
-                                if (!selectedWaterTool) {
-                                    if ((((_a = inventory.waterTools) === null || _a === void 0 ? void 0 : _a.can) || 0) > 0)
-                                        setSelectedWaterTool('can');
-                                    else if (hasConnectedPvc)
-                                        setSelectedWaterTool('pvc');
-                                }
+                                // If the player owns a watering can, Water mode should immediately become
+                                // plant-by-plant watering. Do not leave a stale PVC selection active.
+                                if ((((_a = inventory.waterTools) === null || _a === void 0 ? void 0 : _a.can) || 0) > 0)
+                                    setSelectedWaterTool('can');
+                                else if (hasConnectedPvc)
+                                    setSelectedWaterTool('pvc');
+                                else
+                                    setSelectedWaterTool(null);
                             }, style: { ...styles.modeBtn, ...(mode === 'water' ? styles.modeBtnActive : {}) } }, "\uD83D\uDCA7 Water"),
                         React.createElement("button", { onClick: () => setMode('fertilize'), style: { ...styles.modeBtn, ...(mode === 'fertilize' ? styles.modeBtnActive : {}) } }, "\uD83E\uDDEA Fertilize"),
                         React.createElement("button", { onClick: () => setMode('bugs'), style: { ...styles.modeBtn, ...(mode === 'bugs' ? styles.modeBtnActive : {}) } }, "\uD83E\uDEB1 Beneficials"),
