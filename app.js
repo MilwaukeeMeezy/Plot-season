@@ -445,8 +445,14 @@ function getAvatarMustache(avatar) { return getAssetById(AVATAR_MUSTACHES, avata
 function getAvatarShirt(avatar) { return getAssetById(AVATAR_SHIRTS, avatar === null || avatar === void 0 ? void 0 : avatar.shirtId, DEFAULT_AVATAR.shirtId); }
 function getAvatarOveralls(avatar) { return getAssetById(AVATAR_OVERALLS, avatar === null || avatar === void 0 ? void 0 : avatar.overallsId, DEFAULT_AVATAR.overallsId); }
 function getAvatarHat(avatar) { return getAssetById(AVATAR_HATS, avatar === null || avatar === void 0 ? void 0 : avatar.hatId, DEFAULT_AVATAR.hatId); }
+const AVATAR_ASSET_VERSION = '20260828-1';
+function avatarAssetSrc(src) {
+    if (!src)
+        return src;
+    return src + (src.includes('?') ? '&' : '?') + 'v=' + AVATAR_ASSET_VERSION;
+}
 function AvatarOptionButton({ item, selected, onClick, thumbHeight = 72 }) {
-    const previewSrc = item.thumbSrc || item.src;
+    const previewSrc = avatarAssetSrc(item.thumbSrc || item.src);
     return (React.createElement("button", { onClick: onClick, title: item.label, style: {
             background: '#fff', borderRadius: 6, padding: 6, cursor: 'pointer',
             border: selected ? '3px solid #5C7A4F' : '1.5px solid #B8A98A',
@@ -6820,15 +6826,15 @@ function AvatarPortrait({ avatar, size = 200, equippedClothes = {} }) {
         pointerEvents: 'none',
     };
     return (React.createElement("div", { style: { width: size, height: frameHeight, margin: '0 auto', position: 'relative', overflow: 'hidden', borderRadius: 8, background: '#fffaf1', border: '1.5px solid #C9B98F' } },
-        (shirt === null || shirt === void 0 ? void 0 : shirt.src) && React.createElement("img", { src: shirt.src, alt: shirt.label, style: layerStyle }),
-        (body === null || body === void 0 ? void 0 : body.src) && React.createElement("img", { src: body.src, alt: body.label, style: layerStyle }),
-        (overalls === null || overalls === void 0 ? void 0 : overalls.src) && React.createElement("img", { src: overalls.src, alt: overalls.label, style: layerStyle }),
-        (eyes === null || eyes === void 0 ? void 0 : eyes.src) && React.createElement("img", { src: eyes.src, alt: eyes.label, style: layerStyle }),
-        (lips === null || lips === void 0 ? void 0 : lips.src) && React.createElement("img", { src: lips.src, alt: lips.label, style: layerStyle }),
-        (hair === null || hair === void 0 ? void 0 : hair.src) && React.createElement("img", { src: hair.src, alt: hair.label, style: layerStyle }),
-        (mustache === null || mustache === void 0 ? void 0 : mustache.src) && React.createElement("img", { src: mustache.src, alt: mustache.label, style: layerStyle }),
-        (beard === null || beard === void 0 ? void 0 : beard.src) && React.createElement("img", { src: beard.src, alt: beard.label, style: layerStyle }),
-        (hat === null || hat === void 0 ? void 0 : hat.src) && React.createElement("img", { src: hat.src, alt: hat.label, style: layerStyle }),
+        (shirt === null || shirt === void 0 ? void 0 : shirt.src) && React.createElement("img", { src: avatarAssetSrc(shirt.src), alt: shirt.label, style: layerStyle }),
+        (body === null || body === void 0 ? void 0 : body.src) && React.createElement("img", { src: avatarAssetSrc(body.src), alt: body.label, style: layerStyle }),
+        (overalls === null || overalls === void 0 ? void 0 : overalls.src) && React.createElement("img", { src: avatarAssetSrc(overalls.src), alt: overalls.label, style: layerStyle }),
+        (eyes === null || eyes === void 0 ? void 0 : eyes.src) && React.createElement("img", { src: avatarAssetSrc(eyes.src), alt: eyes.label, style: layerStyle }),
+        (lips === null || lips === void 0 ? void 0 : lips.src) && React.createElement("img", { src: avatarAssetSrc(lips.src), alt: lips.label, style: layerStyle }),
+        (hair === null || hair === void 0 ? void 0 : hair.src) && React.createElement("img", { src: avatarAssetSrc(hair.src), alt: hair.label, style: layerStyle }),
+        (mustache === null || mustache === void 0 ? void 0 : mustache.src) && React.createElement("img", { src: avatarAssetSrc(mustache.src), alt: mustache.label, style: layerStyle }),
+        (beard === null || beard === void 0 ? void 0 : beard.src) && React.createElement("img", { src: avatarAssetSrc(beard.src), alt: beard.label, style: layerStyle }),
+        (hat === null || hat === void 0 ? void 0 : hat.src) && React.createElement("img", { src: avatarAssetSrc(hat.src), alt: hat.label, style: layerStyle }),
         !(hat === null || hat === void 0 ? void 0 : hat.src) && equippedClothes.hat && (React.createElement("div", { style: { position: 'absolute', left: '24%', right: '24%', top: '1%', display: 'flex', justifyContent: 'center', pointerEvents: 'none' } },
             React.createElement(HatIcon, { size: Math.max(36, Math.round(size * 0.42)) }))),
         equippedClothes.apron && (React.createElement("div", { style: { position: 'absolute', left: '34%', right: '34%', top: '38%', height: '16%', background: 'rgba(217,88,79,0.88)', border: '2px solid #8E2E28', borderRadius: 8, pointerEvents: 'none' } })),
