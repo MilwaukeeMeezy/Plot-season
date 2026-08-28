@@ -149,11 +149,7 @@
   function recordHarvest(item) {
     syncSeason();
     const health = Math.max(0, Math.min(100, Number(item && item.health != null ? item.health : 100)));
-    state.currentSeasonHarvests.push({
-      id: item.id,
-      plantId: item.plantId,
-      health
-    });
+    state.currentSeasonHarvests.push({ id: item.id, plantId: item.plantId, health });
     saveState();
   }
 
@@ -233,8 +229,9 @@
   }
 
   function gameIsRunning() {
-    const text = document.body ? document.body.innerText || '' : '';
-    return /Plant Nursery/.test(text) && /Yard/.test(text) && /Garden Journey/.test(text);
+    return Array.from(document.querySelectorAll('button')).some((button) =>
+      button.textContent && button.textContent.includes('Garden Journey')
+    );
   }
 
   function nextRankProgress(info) {
@@ -266,24 +263,14 @@
       badge.title = 'Open Garden Journey to view the full gardener rank ladder';
       badge.setAttribute('aria-label', 'Gardener rank progress');
       Object.assign(badge.style, {
-        position: 'fixed',
-        top: '10px',
-        right: '12px',
-        zIndex: '180',
-        minWidth: '172px',
-        padding: '7px 10px',
-        border: '2px solid #4A3728',
-        borderRadius: '8px',
-        background: '#FFFDF6',
-        color: '#3D2B1F',
-        boxShadow: '2px 2px 0 #4A3728',
-        textAlign: 'left',
-        cursor: 'pointer',
-        fontFamily: 'inherit'
+        position: 'fixed', top: '10px', right: '190px', zIndex: '220', minWidth: '172px', padding: '7px 10px',
+        border: '2px solid #4A3728', borderRadius: '8px', background: '#FFFDF6', color: '#3D2B1F',
+        boxShadow: '2px 2px 0 #4A3728', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit'
       });
       badge.addEventListener('click', function () {
-        const buttons = Array.from(document.querySelectorAll('button'));
-        const journey = buttons.find((button) => button.textContent && button.textContent.includes('Garden Journey'));
+        const journey = Array.from(document.querySelectorAll('button')).find((button) =>
+          button.textContent && button.textContent.includes('Garden Journey')
+        );
         if (journey) journey.click();
       });
       document.body.appendChild(badge);
@@ -353,8 +340,16 @@
     `;
   }
 
-  window.addEventListener('DOMContentLoaded', function () {
+  function startRankUI() {
+    if (window.__plotSeasonRankUIStarted) return;
+    window.__plotSeasonRankUIStarted = true;
     renderRankPanel();
-    setInterval(renderRankPanel, 1200);
-  });
+    setInterval(renderRankPanel, 700);
+  }
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', startRankUI, { once: true });
+  } else {
+    startRankUI();
+  }
 })();
