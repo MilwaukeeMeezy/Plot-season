@@ -188,8 +188,6 @@
     }
   }
 
-  // Observe the game's real React state without changing gameplay decisions.
-  // This script is loaded before app.js, so app.js receives this wrapped useState.
   if (window.React && window.React.useState && !window.React.__plotSeasonGardenerRanks) {
     const originalUseState = window.React.useState;
     window.React.useState = function rankAwareUseState(initialValue) {
@@ -234,6 +232,70 @@
     return heading ? heading.parentElement : null;
   }
 
+  function gameIsRunning() {
+    const text = document.body ? document.body.innerText || '' : '';
+    return /Plant Nursery/.test(text) && /Yard/.test(text) && /Garden Journey/.test(text);
+  }
+
+  function nextRankProgress(info) {
+    if (!info.next) return 'Highest rank achieved';
+    if (info.next.id === 'grower') {
+      const planted = state.planted ? 1 : 0;
+      const water = Math.min(state.gardenGoals.plantsWatered, 5) / 5;
+      const harvest = Math.min(state.gardenGoals.harvests, 3) / 3;
+      return `${Math.round(((planted + water + harvest) / 3) * 100)}% to Grower`;
+    }
+    if (info.next.id === 'hobbyist-cultivator') return `${Math.min(qualifyingSeasonCount(60), 1)}/1 season at 60%+`;
+    if (info.next.id === 'gardener') return `${Math.min(qualifyingSeasonCount(70), 2)}/2 seasons at 70%+`;
+    if (info.next.id === 'master-gardener') return `${Math.min(qualifyingSeasonCount(80), 3)}/3 seasons at 80%+`;
+    return `Next: ${info.next.name}`;
+  }
+
+  function renderAlwaysVisibleBadge() {
+    let badge = document.getElementById('gardener-rank-badge');
+    if (!gameIsRunning()) {
+      if (badge) badge.remove();
+      return;
+    }
+
+    const info = currentRankInfo();
+    if (!badge) {
+      badge = document.createElement('button');
+      badge.id = 'gardener-rank-badge';
+      badge.type = 'button';
+      badge.title = 'Open Garden Journey to view the full gardener rank ladder';
+      badge.setAttribute('aria-label', 'Gardener rank progress');
+      Object.assign(badge.style, {
+        position: 'fixed',
+        top: '10px',
+        right: '12px',
+        zIndex: '180',
+        minWidth: '172px',
+        padding: '7px 10px',
+        border: '2px solid #4A3728',
+        borderRadius: '8px',
+        background: '#FFFDF6',
+        color: '#3D2B1F',
+        boxShadow: '2px 2px 0 #4A3728',
+        textAlign: 'left',
+        cursor: 'pointer',
+        fontFamily: 'inherit'
+      });
+      badge.addEventListener('click', function () {
+        const buttons = Array.from(document.querySelectorAll('button'));
+        const journey = buttons.find((button) => button.textContent && button.textContent.includes('Garden Journey'));
+        if (journey) journey.click();
+      });
+      document.body.appendChild(badge);
+    }
+
+    badge.innerHTML = `
+      <div style="font-size:9px;font-weight:900;letter-spacing:.7px;text-transform:uppercase;color:#6b5844">Gardener Rank</div>
+      <div style="font-size:13px;font-weight:900;margin-top:1px">${info.current.icon} ${info.current.name}</div>
+      <div style="font-size:9px;color:#6b5844;margin-top:2px">${nextRankProgress(info)}</div>
+    `;
+  }
+
   function renderRankPanel() {
     syncSeason();
     const info = currentRankInfo();
@@ -243,6 +305,8 @@
       saveState();
       if (document.body) showRankToast(info.current);
     }
+
+    renderAlwaysVisibleBadge();
 
     const root = journeyRoot();
     if (!root) return;
