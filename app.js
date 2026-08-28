@@ -161,7 +161,7 @@ function pondMosquitoControl(pond) {
 // ---------- TRELLISES ----------
 const TRELLIS_TYPES = [
     { id: 'woodtrellis', name: 'Wood Trellis', icon: '🪵', cost: 28, growthMult: 1.10, desc: 'Classic lattice support for cucumbers, peas, pole beans, and other climbing vines.' },
-    { id: 'cattlepanel', name: 'Cattle Panel (Cow Panel) Trellis', icon: '▦', cost: 48, growthMult: 1.15, desc: 'Heavy galvanized panel support for vigorous or heavy vines such as luffa, melons, grapes, and hardy kiwi.' },
+    { id: 'cattlepanel', name: 'Cattle Panel Arch', icon: '⌒', cost: 48, growthMult: 1.15, footprintW: 3, footprintH: 2, desc: 'A curved galvanized cattle-panel tunnel. Place it over a bed or open-ground planting area; vines can be planted underneath and will climb up and over the arch.' },
     { id: 'tpostnet', name: 'T-Post + Garden Net Trellis', icon: '🕸️', cost: 36, growthMult: 1.12, desc: 'Two T-posts with reusable garden netting. Flexible support for peas, beans, cucumbers, tomatoes, and lighter vines.' },
 ];
 // ---------- PROTECTION, PLANTERS & PATHS ----------
@@ -1128,7 +1128,7 @@ const FIRST_TIME_GUIDES = {
             'Choose eyes, lips, optional facial hair, shirt underlay, and sun hat.',
             'You can change the gardener later from Character → Update My Gardener without restarting your garden.',
             'Greenhouses are bought at the Plant Nursery, placed from Yard → Build, and clicked to enter. Crops inside are protected from outdoor frost.',
-            'Ponds, trellises, planter buckets, insect netting, and brick/stone paths are sold under Plant Nursery → Materials. Click ponds to stock fish; place trellises beside vines; click planted buckets to manage container crops.'
+            'Ponds, trellises, planter buckets, insect netting, and brick/stone paths are sold under Plant Nursery → Materials. Click ponds to stock fish; place wood/net trellises beside vines, or place cattle-panel arches over the growing area; click planted buckets to manage container crops.'
         ]
     },
     methods: {
@@ -3472,23 +3472,68 @@ function GardenGame() {
         setInventory((inv) => { var _a; return ({ ...inv, pondFish: { ...inv.pondFish, [fishId]: (((_a = inv.pondFish) === null || _a === void 0 ? void 0 : _a[fishId]) || 0) + 1 } }); });
         addLog(`Returned one ${fish.name} from the pond to inventory.`);
     }
+    function cattlePanelFootprint(t) {
+        const type = TRELLIS_TYPES.find((x) => x.id === t.typeId);
+        return { w: t.w || type?.footprintW || 1, h: t.h || type?.footprintH || 1 };
+    }
+    function cattlePanelCoversCell(t, gx, gy) {
+        if (!t || t.typeId !== 'cattlepanel')
+            return false;
+        const fp = cattlePanelFootprint(t);
+        return gx >= t.x && gx < t.x + fp.w && gy >= t.y && gy < t.y + fp.h;
+    }
+    function cattlePanelAreaClear(x, y, w, h) {
+        if (x < 0 || y < 0 || x + w > GRID_COLS || y + h > GRID_ROWS)
+            return false;
+        for (let gx = x; gx < x + w; gx++) {
+            for (let gy = y; gy < y + h; gy++) {
+                if (greenhouses.some((g) => gx >= g.x && gx < g.x + g.w && gy >= g.y && gy < g.y + g.h) ||
+                    ponds.some((p) => gx >= p.x && gx < p.x + p.w && gy >= p.y && gy < p.y + p.h) ||
+                    planterBuckets.some((p) => p.x === gx && p.y === gy) ||
+                    treeContainers.some((p) => p.x === gx && p.y === gy) ||
+                    barrels.some((p) => p.x === gx && p.y === gy) ||
+                    spigots.some((p) => p.x === gx && p.y === gy) ||
+                    groundObstacles.some((o) => o.gx === gx && o.gy === gy) ||
+                    trellises.some((t) => t.typeId === 'cattlepanel' && cattlePanelCoversCell(t, gx, gy)) ||
+                    trellises.some((t) => t.typeId !== 'cattlepanel' && t.x === gx && t.y === gy))
+                    return false;
+            }
+        }
+        return true;
+    }
     function placeTrellis(typeId, x, y) {
         var _a;
         const type = TRELLIS_TYPES.find((t) => t.id === typeId);
         if (!type)
             return;
-        if ((((_a = inventory.trellises) === null || _a === void 0 ? void 0 : _a[typeId]) || 0) < 1) {
+        const owned = (((_a = inventory.trellises) === null || _a === void 0 ? void 0 : _a[typeId]) || 0);
+        if (owned < 1) {
             addLog(`No ${type.name} in inventory — buy one at the Plant Nursery.`);
             return;
         }
+        if (typeId === 'cattlepanel') {
+            const w = type.footprintW || 3, h = type.footprintH || 2;
+            if (!cattlePanelAreaClear(x, y, w, h)) {
+                addLog(`The ${type.name} needs a clear ${w}×${h} footprint. Beds and crops are allowed underneath, but buildings, ponds, pots, trees, barrels, and other trellises are not.`);
+                return;
+            }
+            trellisIdRef.current += 1;
+            setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [typeId]: Math.max(0, (inv.trellises?.[typeId] || 0) - 1) } }));
+            setTrellises((prev) => [...prev, { id: trellisIdRef.current, typeId, x, y, w, h }]);
+            if (owned <= 1)
+                setSelectedBuildMaterial(null);
+            addLog(`Placed ${type.name}. You can plant vining crops directly underneath the arch; they will climb up and over it.`);
+            return;
+        }
         if (cellOccupied(x, y)) {
-            addLog('Something is already there. Place the trellis beside the crop, not on top of it.');
+            addLog('Something is already there. Place this trellis beside the crop, not on top of it.');
             return;
         }
         trellisIdRef.current += 1;
-        setInventory((inv) => { var _a; return ({ ...inv, trellises: { ...inv.trellises, [typeId]: (((_a = inv.trellises) === null || _a === void 0 ? void 0 : _a[typeId]) || 0) - 1 } }); });
+        setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [typeId]: Math.max(0, (inv.trellises?.[typeId] || 0) - 1) } }));
         setTrellises((prev) => [...prev, { id: trellisIdRef.current, typeId, x, y }]);
-        setSelectedBuildMaterial(null);
+        if (owned <= 1)
+            setSelectedBuildMaterial(null);
         addLog(`Placed ${type.name}. Vining crops in an adjacent square will climb it and grow more efficiently.`);
     }
     function deleteTrellis(id) {
@@ -3496,11 +3541,13 @@ function GardenGame() {
         if (!item)
             return;
         setTrellises((prev) => prev.filter((t) => t.id !== id));
-        setInventory((inv) => { var _a; return ({ ...inv, trellises: { ...inv.trellises, [item.typeId]: (((_a = inv.trellises) === null || _a === void 0 ? void 0 : _a[item.typeId]) || 0) + 1 } }); });
+        setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [item.typeId]: (inv.trellises?.[item.typeId] || 0) + 1 } }));
         addLog('Trellis returned to inventory.');
     }
     function trellisNearCell(gx, gy) {
-        return trellises.find((t) => Math.abs(t.x - gx) + Math.abs(t.y - gy) === 1) || null;
+        return trellises.find((t) => t.typeId === 'cattlepanel'
+            ? cattlePanelCoversCell(t, gx, gy)
+            : Math.abs(t.x - gx) + Math.abs(t.y - gy) === 1) || null;
     }
     function netForPlantLocation(plant, location) {
         if (!plant || !location)
@@ -3546,7 +3593,7 @@ function GardenGame() {
         return null;
     }
     function cellOccupied(x, y) {
-        return beds.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) || greenhouses.some((g) => x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h) || ponds.some((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) || trellises.some((t) => t.x === x && t.y === y) || planterBuckets.some((c) => c.x === x && c.y === y) || treeContainers.some((c) => c.x === x && c.y === y) || barrels.some((br) => br.x === x && br.y === y) || spigots.some((sp) => sp.x === x && sp.y === y) || groundObstacles.some((o) => o.gx === x && o.gy === y);
+        return beds.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) || greenhouses.some((g) => x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h) || ponds.some((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) || trellises.some((t) => t.typeId !== 'cattlepanel' && t.x === x && t.y === y) || planterBuckets.some((c) => c.x === x && c.y === y) || treeContainers.some((c) => c.x === x && c.y === y) || barrels.some((br) => br.x === x && br.y === y) || spigots.some((sp) => sp.x === x && sp.y === y) || groundObstacles.some((o) => o.gx === x && o.gy === y);
     }
     function rectFree(x0, y0, x1, y1) {
         for (let x = x0; x <= x1; x++)
@@ -5927,7 +5974,7 @@ function NurseryShopTab({ cash, inventory, zone, buySeedPacket, sellSeedPacket, 
                         React.createElement(Stepper, { count: ((_a = inventory.pondFish) === null || _a === void 0 ? void 0 : _a[f.id]) || 0, cost: f.cost, onAdd: () => buyPondFish(f.id), onRemove: () => sellPondFish(f.id), canAdd: cash >= f.cost })));
                 })),
             React.createElement("div", { id: "yardmat-trellis", style: { ...styles.materialGroupLabel, scrollMarginTop: 18 } }, "Trellising"),
-            React.createElement("div", { style: { fontSize: 11, color: '#6b5844', marginBottom: 8 } }, "Trellises are optional but preferred. Vines can grow without one; unsupported vines spread across the ground and their visible leaves get larger each day until you train/prune them. Supported vines climb vertically, grow a little faster, and benefit from better airflow."),
+            React.createElement("div", { style: { fontSize: 11, color: '#6b5844', marginBottom: 8 } }, "Trellises are optional but preferred. Vines can grow without one; unsupported vines spread across the ground and their visible leaves get larger each day until you train/prune them. Wood and net trellises go beside crops. Cattle Panel Arches span a 3×2 growing area, can be placed over beds or open ground, and vines may be planted directly underneath them."),
             React.createElement("div", { style: styles.shopGrid }, TRELLIS_TYPES.map((t) => {
                 var _a;
                 return (React.createElement("div", { key: t.id, style: styles.shopCard },
@@ -5936,7 +5983,7 @@ function NurseryShopTab({ cash, inventory, zone, buySeedPacket, sellSeedPacket, 
                     React.createElement("div", { style: { fontSize: 10, color: '#6b5844', margin: '4px 0', minHeight: 48 } }, t.desc),
                     React.createElement(Stepper, { count: ((_a = inventory.trellises) === null || _a === void 0 ? void 0 : _a[t.id]) || 0, cost: t.cost, onAdd: () => buyTrellis(t.id), onRemove: () => sellTrellis(t.id), canAdd: cash >= t.cost })));
             })),
-            React.createElement("div", { id: "yardmat-protection", style: { ...styles.materialGroupLabel, scrollMarginTop: 18 } }, "Tree & Bush Protection"),
+            React.createElement("div", { id: "yardmat-protection", style: { ...styles.materialGroupLabel, scrollMarginTop: 18 } }, "Plant Protection"),
             React.createElement("div", { style: styles.shopGrid },
                 React.createElement("div", { style: styles.shopCard },
                     React.createElement("div", { style: { fontSize: 28 } }, TREE_BUSH_NET.icon),
@@ -7458,7 +7505,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                             const onBarrel = barrels.some((br) => br.x === x && br.y === y);
                             const onGreenhouse = greenhouses.some((g) => x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h);
                             const onPond = ponds.some((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h);
-                            const onTrellis = trellises.some((t) => t.x === x && t.y === y);
+                            const onTrellis = trellises.some((t) => t.typeId !== 'cattlepanel' && t.x === x && t.y === y);
                             const groundSq = !onBed && !onBarrel && !onGreenhouse && !onPond && !onTrellis ? getGroundSquare(x, y) : null;
                             const groundTile = !onBed && !onBarrel && !onGreenhouse && !onPond && !onTrellis ? groundSoilTiles.find((t) => t.gx === x && t.gy === y) : null;
                             const groundTilled = !onBed && !onBarrel && !onGreenhouse && !onPond && !onTrellis ? groundTilledTiles.find((t) => t.gx === x && t.gy === y) : null;
@@ -7616,8 +7663,18 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                         protectiveNets.map((n) => React.createElement("div", { key: `net-${n.id}`, style: { position: 'absolute', left: n.x * CELL_PX + 2, top: n.y * CELL_PX + 2, width: CELL_PX - 4, height: CELL_PX - 4, zIndex: 12, border: '2px dashed #E8F1E8', background: 'repeating-linear-gradient(45deg,rgba(255,255,255,.10) 0 5px,rgba(255,255,255,.35) 5px 6px)', pointerEvents: 'auto' }, title: "Plant Insect Net" }, mode === 'build' && React.createElement("button", { style: { ...styles.deleteFixtureBtn, right: -6, top: -6, transform: 'scale(.72)' }, onClick: (e) => { e.stopPropagation(); deleteProtectiveNet(n.id); } }, "\u2715"))),
                         trellises.map((t) => {
                             const type = TRELLIS_TYPES.find((x) => x.id === t.typeId) || TRELLIS_TYPES[0];
-                            const hasVine = groundPlants.some((p) => p && !p.dead && !p.harvested && isViningPlant(p) && Math.abs(p.gx - t.x) + Math.abs(p.gy - t.y) === 1) || beds.some((b) => (b.plants || []).some((p) => p && !p.dead && !p.harvested && isViningPlant(p) && Math.abs((b.x + (p.sx || 0)) - t.x) + Math.abs((b.y + (p.sy || 0)) - t.y) === 1));
-                            return React.createElement("div", { key: `trellis-${t.id}`, style: { position: 'absolute', left: t.x * CELL_PX + 4, top: t.y * CELL_PX + 2, width: CELL_PX - 8, height: CELL_PX - 4, zIndex: 6, border: type.id === 'cattlepanel' ? '2px solid #70777A' : type.id === 'tpostnet' ? '3px solid #52595C' : '3px solid #8B5A2B', background: type.id === 'cattlepanel' ? 'repeating-linear-gradient(0deg,transparent 0 8px,rgba(100,110,112,.7) 8px 10px),repeating-linear-gradient(90deg,transparent 0 8px,rgba(100,110,112,.7) 8px 10px)' : type.id === 'tpostnet' ? 'repeating-linear-gradient(0deg,transparent 0 6px,rgba(235,245,235,.8) 6px 7px),repeating-linear-gradient(90deg,transparent 0 6px,rgba(235,245,235,.8) 6px 7px),linear-gradient(90deg,#4E5457 0 5px,transparent 5px calc(100% - 5px),#4E5457 calc(100% - 5px))' : 'repeating-linear-gradient(45deg,transparent 0 8px,rgba(139,90,43,.65) 8px 11px),repeating-linear-gradient(-45deg,transparent 0 8px,rgba(139,90,43,.65) 8px 11px)', borderRadius: 4, pointerEvents: 'auto' }, title: `${type.name}${hasVine ? ' · a vine is climbing this support' : ''}` },
+                            const fp = type.id === 'cattlepanel' ? cattlePanelFootprint(t) : { w: 1, h: 1 };
+                            const hasVine = groundPlants.some((p) => p && !p.dead && !p.harvested && isViningPlant(p) && (type.id === 'cattlepanel' ? cattlePanelCoversCell(t, p.gx, p.gy) : Math.abs(p.gx - t.x) + Math.abs(p.gy - t.y) === 1)) ||
+                                beds.some((b) => (b.plants || []).some((p) => p && !p.dead && !p.harvested && isViningPlant(p) && (type.id === 'cattlepanel' ? cattlePanelCoversCell(t, b.x + (p.sx || 0), b.y + (p.sy || 0)) : Math.abs((b.x + (p.sx || 0)) - t.x) + Math.abs((b.y + (p.sy || 0)) - t.y) === 1)));
+                            if (type.id === 'cattlepanel') {
+                                return React.createElement("div", { key: `trellis-${t.id}`, style: { position: 'absolute', left: t.x * CELL_PX + 2, top: t.y * CELL_PX + 1, width: fp.w * CELL_PX - 4, height: fp.h * CELL_PX - 2, zIndex: 11, pointerEvents: 'none' }, title: `${type.name}${hasVine ? ' · vines are climbing the arch' : ' · plant vines underneath'}` },
+                                    React.createElement("div", { style: { position: 'absolute', left: 3, right: 3, top: 3, height: '58%', border: '3px solid #6F777A', borderBottom: 'none', borderRadius: '48% 48% 10px 10px / 80% 80% 10px 10px', background: 'repeating-linear-gradient(90deg,transparent 0 12px,rgba(105,115,118,.62) 12px 14px),repeating-linear-gradient(0deg,transparent 0 12px,rgba(105,115,118,.55) 12px 14px)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.35)', pointerEvents: 'none' } }),
+                                    React.createElement("div", { style: { position: 'absolute', left: 5, top: '43%', width: 4, height: '54%', background: '#4F5659', borderRadius: 2 } }),
+                                    React.createElement("div", { style: { position: 'absolute', right: 5, top: '43%', width: 4, height: '54%', background: '#4F5659', borderRadius: 2 } }),
+                                    hasVine && React.createElement("div", { style: { position: 'absolute', inset: '5% 6% 15%', display: 'flex', alignItems: 'center', justifyContent: 'space-around', fontSize: 24, opacity: .9, pointerEvents: 'none' } }, "🌿", "🌿", "🌿"),
+                                    mode === 'build' && React.createElement("button", { style: { ...styles.deleteFixtureBtn, right: -7, top: -7, transform: 'scale(.8)', pointerEvents: 'auto' }, onClick: (e) => { e.stopPropagation(); deleteTrellis(t.id); }, title: "Remove cattle panel arch" }, "\u2715"));
+                            }
+                            return React.createElement("div", { key: `trellis-${t.id}`, style: { position: 'absolute', left: t.x * CELL_PX + 4, top: t.y * CELL_PX + 2, width: CELL_PX - 8, height: CELL_PX - 4, zIndex: 6, border: type.id === 'tpostnet' ? '3px solid #52595C' : '3px solid #8B5A2B', background: type.id === 'tpostnet' ? 'repeating-linear-gradient(0deg,transparent 0 6px,rgba(235,245,235,.8) 6px 7px),repeating-linear-gradient(90deg,transparent 0 6px,rgba(235,245,235,.8) 6px 7px),linear-gradient(90deg,#4E5457 0 5px,transparent 5px calc(100% - 5px),#4E5457 calc(100% - 5px))' : 'repeating-linear-gradient(45deg,transparent 0 8px,rgba(139,90,43,.65) 8px 11px),repeating-linear-gradient(-45deg,transparent 0 8px,rgba(139,90,43,.65) 8px 11px)', borderRadius: 4, pointerEvents: 'auto' }, title: `${type.name}${hasVine ? ' · a vine is climbing this support' : ''}` },
                                 hasVine && React.createElement("span", { style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, pointerEvents: 'none' } }, "\uD83C\uDF3F"),
                                 mode === 'build' && React.createElement("button", { style: { ...styles.deleteFixtureBtn, right: -7, top: -7, transform: 'scale(.8)' }, onClick: (e) => { e.stopPropagation(); deleteTrellis(t.id); }, title: "Remove trellis" }, "\u2715"));
                         }),
@@ -7726,7 +7783,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                     selectedBuildMaterial === 'barrel' && 'Click any empty square to place a rain barrel. Click a placed barrel to pick it back up.',
                     selectedBuildMaterial === 'spigot' && 'Click any empty square to place a spigot. Click a placed spigot to pick it back up.',
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('pond:') && 'Click open yard space to place the pond footprint. After placement, click the pond to stock fish.',
-                    typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('trellis:') && 'Click an empty square beside a vining crop. Supported vines will climb the trellis and receive a growth/airflow benefit.',
+                    typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('trellis:') && (selectedBuildMaterial === 'trellis:cattlepanel' ? 'Click the upper-left square of a 3×2 area. The cattle-panel arch can sit over beds or open ground, and you can plant vines directly underneath it.' : 'Click an empty square beside a vining crop. Supported vines will climb the trellis and receive a growth/airflow benefit.'),
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('treecontainer:') && 'Click an empty square to place a movable tree container. Click the pot afterward to plant a tropical tree and move it into a greenhouse for cold weather.',
                     selectedBuildMaterial === 'protective-net' && 'Click directly on any living plant, bush, or tree to cover it with insect netting. Remove or open netting during bloom for pollinators.',
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('bucket:') && 'Click open ground to place the planter bucket, then click the bucket to plant it.',
