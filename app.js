@@ -7519,13 +7519,20 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
     const hasPlacedPvc = pipes.length > 0;
     const hasConnectedPvc = pipes.some((p) => pvcIsConnected(p));
     const pvcHasOnSource = pipes.some((p) => pvcNetworkHasOnSource(p));
-    function renderSquareContent(sq, onCollectSeeds, onHarvest, onMaintainVine) {
+    function renderSquareContent(sq, onCollectSeeds, onHarvest, onMaintainVine, onWater) {
         if (!sq)
             return React.createElement("span", { style: { opacity: 0.15, fontSize: 12 } }, "+");
         const subCols = Math.ceil(Math.sqrt(sq.perSqFt || 1));
         const canCollectSeeds = !sq.dead && !sq.seedsCollected && sq.age >= sq.daysToMature;
         return (React.createElement(React.Fragment, null,
             React.createElement("div", { style: { ...styles.miniGrid, gridTemplateColumns: `repeat(${subCols}, 1fr)`, position: 'relative', zIndex: 3 } }, Array.from({ length: sq.perSqFt || 1 }).map((_, i) => (React.createElement("span", { key: i, style: { fontSize: subCols >= 4 ? 9 : subCols >= 3 ? 12 : 17, opacity: sq.dead ? 0.35 : sq.harvested ? 0.3 : 1, lineHeight: 1 } }, sq.dead ? '💀' : sq.harvested ? '✅' : sq.emoji)))),
+            mode === 'water' && selectedWaterTool === 'can' && !sq.dead && !sq.harvested && onWater && (React.createElement("button", {
+                type: "button",
+                onClick: (e) => { e.stopPropagation(); onWater(); },
+                title: `Water ${sq.name} with watering can`,
+                "aria-label": `Water ${sq.name} with watering can`,
+                style: { position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', zIndex: 40, padding: 0 }
+            })),
             isViningPlant(sq) && !sq.dead && !sq.harvested && Number(sq.vineSprawl || 0) > 0 && (() => {
                 const sprawl = Math.min(6, Number(sq.vineSprawl || 0));
                 const leafCount = Math.min(10, 2 + sprawl);
@@ -7736,7 +7743,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                                 mode === 'soil' && groundTile && (React.createElement("div", { style: { position: 'absolute', display: 'flex', gap: 2, zIndex: 4, top: -2, left: -2 } },
                                     React.createElement("button", { style: { ...styles.phAmendBtn, fontSize: 7, padding: '1px 3px' }, onClick: (e) => { e.stopPropagation(); applyPHAmendment('ground', null, x, y, 'woodash'); }, title: "Apply Wood Ash (raises pH)" }, "+"),
                                     React.createElement("button", { style: { ...styles.phAmendBtn, fontSize: 7, padding: '1px 3px' }, onClick: (e) => { e.stopPropagation(); applyPHAmendment('ground', null, x, y, 'acidifier'); }, title: "Apply Soil Acidifier (lowers pH)" }, "\u2212"))),
-                                !onBed && !onBarrel && groundSq && (React.createElement("div", { style: styles.groundSquareInner }, renderSquareContent(groundSq, () => collectSeedsFromGroundSquare(x, y), () => harvestGroundSquare(x, y), () => maintainGroundVine(x, y)))),
+                                !onBed && !onBarrel && groundSq && (React.createElement("div", { style: styles.groundSquareInner }, renderSquareContent(groundSq, () => collectSeedsFromGroundSquare(x, y), () => harvestGroundSquare(x, y), () => maintainGroundVine(x, y), () => waterSquare('ground', null, x, y)))),
                                 !onBed && !onBarrel && groundSq && !groundSq.dead && !groundSq.harvested && (() => {
                                     const rels = [[0, -1], [0, 1], [-1, 0], [1, 0]]
                                         .map(([dx, dy]) => groundPlants.find((n) => n && !n.dead && !n.harvested && n.gx === x + dx && n.gy === y + dy))
@@ -7923,7 +7930,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                                             else
                                                 waterBed(bed.id);
                                         }, style: { ...styles.sqftCell, ...(bed.soilId ? styles.sqftCellSoiled : {}), ...(!sq && mode === 'plant' ? styles.sqftCellEmpty : {}), ...(!sq && pendingTransplant ? styles.sqftCellTransplantTarget : {}) } },
-                                        renderSquareContent(sq, () => collectSeedsFromBedSquare(bed.id, sx, sy), () => harvestBedSquare(bed.id, sx, sy), () => maintainBedVine(bed.id, sx, sy)),
+                                        renderSquareContent(sq, () => collectSeedsFromBedSquare(bed.id, sx, sy), () => harvestBedSquare(bed.id, sx, sy), () => maintainBedVine(bed.id, sx, sy), () => waterSquare('bed', bed.id, sx, sy)),
                                         sq && !sq.dead && !sq.harvested && (() => {
                                             const rels = [[0, -1], [0, 1], [-1, 0], [1, 0]]
                                                 .map(([dx, dy]) => bed.plants.find((n) => n && !n.dead && !n.harvested && n.sx === sx + dx && n.sy === sy + dy))
