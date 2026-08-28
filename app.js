@@ -24,9 +24,31 @@ const STICK_BUNDLES = [
 ];
 const LEAVES_ITEM = { id: 'leaves', name: 'Bag of Leaves', icon: '🍂', cost: 2, desc: 'Dry leaves — a "brown," carbon-rich compost ingredient.' };
 const CARDBOARD_ITEM = { id: 'cardboard', name: 'Cardboard', icon: '📦', cost: 2, desc: 'Shredded cardboard — another carbon-rich "brown" for the compost bin.' };
-const COMPOST_RECIPE = { deadMatter: 2, leaves: 2, cardboard: 1, soil: 1 }; // consumed together to start a batch
-const COMPOST_DAYS = 14;
-const COMPOST_YIELD = 3; // bags of boosted Compost soil produced when ready
+const COMPOST_RECIPE = { deadMatter: 1, leaves: 0, cardboard: 0, soil: 0 };
+const COMPOST_DAYS = 18;
+const COMPOST_YIELD = 2;
+const COMPOSTABLE_KEYS = ['deadMatter','leaves','cardboard','coffeegrounds','bananapeels','eggshells'];
+function compostIngredientValue(key) {
+    if (key === 'deadMatter' || key === 'coffeegrounds' || key === 'bananapeels') return { green: 1, brown: 0, nutrient: 1.2 };
+    if (key === 'leaves' || key === 'cardboard') return { green: 0, brown: 1, nutrient: .65 };
+    if (key === 'eggshells') return { green: 0, brown: .3, nutrient: .9 };
+    return { green: 0, brown: 0, nutrient: .5 };
+}
+function compostStats(ingredients) {
+    const ing = ingredients || {};
+    let total = 0, greens = 0, browns = 0, nutrients = 0;
+    COMPOSTABLE_KEYS.forEach((k) => {
+        const n = Math.max(0, Number(ing[k] || 0));
+        const v = compostIngredientValue(k);
+        total += n; greens += n * v.green; browns += n * v.brown; nutrients += n * v.nutrient;
+    });
+    const balanced = greens > 0 && browns > 0;
+    const balanceBonus = balanced ? Math.min(greens, browns) / Math.max(greens, browns) : 0;
+    const daysNeeded = Math.max(6, Math.round(COMPOST_DAYS - Math.min(8, total * .8) - balanceBonus * 4));
+    const nutrientScore = Math.max(1, Math.round((nutrients + balanceBonus * 3) * 10) / 10);
+    const yieldCount = Math.max(1, Math.min(8, Math.floor(total / 2) + 1));
+    return { total, greens, browns, balanced, balanceBonus, daysNeeded, nutrientScore, yieldCount };
+}
 const BURN_RECOVERY_DAYS = 14; // about two calendar months in the compressed 80-day game year
 // ---------- HOMEMADE FERTILIZERS ----------
 // Real natural fertilizer techniques: gather raw kitchen/garden scraps, steep them into liquid feeds.
@@ -2292,7 +2314,7 @@ function GardenGame() {
         setPlanterBuckets((prev) => prev.map((c) => c.plant ? { ...c, plant: ageFn(c.plant, null, 6.5, { kind: 'bucket', bucketId: c.id }) } : c));
         setTrays((prev) => prev.map((t) => ({ ...t, cells: t.cells.map((c) => (c && !c.ready && !c.failed ? { ...c, daysIn: c.daysIn + 1, ready: c.daysIn + 1 >= c.daysNeeded } : c)) })));
         setColdStratBatches((prev) => prev.map((b) => (b.ready ? b : { ...b, daysIn: b.daysIn + 1, ready: b.daysIn + 1 >= b.daysNeeded })));
-        setCompostBatches((prev) => prev.map((b) => (b.ready ? b : { ...b, daysIn: b.daysIn + 1, ready: b.daysIn + 1 >= b.daysNeeded })));
+        setCompostBatches((prev) => prev.map((b) => { if (b.ready) return b; const heatBoost = (b.nutrientScore || 0) >= 8 ? .35 : (b.nutrientScore || 0) >= 5 ? .2 : 0; const next = b.daysIn + 1 + heatBoost; return { ...b, daysIn: next, ready: next >= b.daysNeeded }; }));
         setFertilizerBatches((prev) => prev.map((b) => (b.ready ? b : { ...b, daysIn: b.daysIn + 1, ready: b.daysIn + 1 >= b.daysNeeded })));
         setBasketItems((prev) => {
             const aged = prev.map((i) => ({ ...i, daysIn: i.daysIn + 1 }));
@@ -3042,7 +3064,7 @@ function GardenGame() {
         return; if (!basketSizeId || basketItems.length >= basketCapacity()) {
         addLog('You need basket space.');
         return;
-    } basketItemIdRef.current += 1; setBasketItems((prev) => [...prev, { id: basketItemIdRef.current, plantId: p.id, name: p.name, emoji: p.emoji, value: Math.round((p.sellValue || 0) * (tier === 'full' ? 1 : .5)), daysIn: 0, sellable: true, health: p.health || 100, qualityTier: tier }]); setPlanterBuckets((prev) => prev.map((x) => x.id === id ? { ...x, plant: p.repeatHarvest ? { ...p, age: Math.max(0, p.daysToMature - (p.regrowDays || 5)) } : null } : x)); }
+    } basketItemIdRef.current += 1; setBasketItems((prev) => [...prev, { id: basketItemIdRef.current, plantId: p.id, name: p.name, emoji: p.emoji, value: Math.round((p.sellValue || 0) * (tier === 'full' ? 1 : .5)), daysIn: 0, sellable: true, health: p.health || 100, qualityTier: tier }]); setPlanterBuckets((prev) => prev.map((x) => x.id === id ? { ...x, plant: p.repeatHarvest ? nextStateAfterHarvest(p) : null } : x)); }
     function buyTreeContainer(typeId) {
         const item = TREE_CONTAINER_TYPES.find((x) => x.id === typeId);
         if (!item)
@@ -4559,8 +4581,13 @@ function GardenGame() {
         return base + apronBonus + wheelbarrowBonus;
     }
     function nextStateAfterHarvest(p) {
-        if (p === null || p === void 0 ? void 0 : p.repeatHarvest)
-            return { ...p, age: Math.max(0, p.daysToMature - (p.regrowDays || 4)), harvested: false, seedsCollected: false, harvestCount: (p.harvestCount || 0) + 1 };
+        if (p && p.repeatHarvest) {
+            const nextCount = (p.harvestCount || 0) + 1;
+            const perennial = p.growthForm === 'tree' || p.growthForm === 'shrub' || p.perennial;
+            if (!perennial && nextCount >= 4)
+                return { ...p, harvestCount: nextCount, harvested: true, exhausted: true, seedsCollected: false };
+            return { ...p, age: Math.max(0, p.daysToMature - (p.regrowDays || 4)), harvested: false, seedsCollected: false, harvestCount: nextCount };
+        }
         return { ...p, harvested: true };
     }
     function harvestBedSquare(bedId, sx, sy) {
@@ -4958,47 +4985,59 @@ function GardenGame() {
         setColdStratBatches((prev) => prev.filter((b) => b.id !== batchId));
         addLog(`Collected 1 stratified seed — ready for Heat/Light Germination.`);
     }
+    function takeCompostables(inv) {
+        const ingredients = {};
+        COMPOSTABLE_KEYS.forEach((k) => { ingredients[k] = Math.max(0, Number(inv[k] || 0)); });
+        return ingredients;
+    }
     function startCompostBatch() {
-        const r = COMPOST_RECIPE;
-        if ((inventory.deadMatter || 0) < r.deadMatter) {
-            addLog(`Need ${r.deadMatter} compost greens — clear dead plants or pull compost-safe weeds in the Yard to collect them.`);
-            return;
-        }
-        if ((inventory.leaves || 0) < r.leaves) {
-            addLog(`Need ${r.leaves} bags of leaves — buy some at the Plant Nursery.`);
-            return;
-        }
-        if ((inventory.cardboard || 0) < r.cardboard) {
-            addLog(`Need ${r.cardboard} cardboard — buy some at the Plant Nursery.`);
-            return;
-        }
-        const anySoil = SOILS.find((s) => (inventory.soils[s.id] || 0) >= r.soil);
-        if (!anySoil) {
-            addLog(`Need ${r.soil} bag of any soil to start the pile.`);
+        const ingredients = takeCompostables(inventory);
+        const stats = compostStats(ingredients);
+        if (stats.total < 1) {
+            addLog('You can start compost as soon as you have weeds/dead matter, leaves, cardboard, coffee grounds, banana peels, or eggshells.');
             return;
         }
         const burnDebrisUsed = (inventory.burnDebris || 0) > 0 ? 1 : 0;
-        setInventory((inv) => ({
-            ...inv,
-            deadMatter: inv.deadMatter - r.deadMatter,
-            leaves: inv.leaves - r.leaves,
-            cardboard: inv.cardboard - r.cardboard,
-            burnDebris: Math.max(0, (inv.burnDebris || 0) - burnDebrisUsed),
-            soils: { ...inv.soils, [anySoil.id]: inv.soils[anySoil.id] - r.soil },
-        }));
+        setInventory((inv) => {
+            const next = { ...inv };
+            COMPOSTABLE_KEYS.forEach((k) => { next[k] = Math.max(0, (next[k] || 0) - (ingredients[k] || 0)); });
+            next.burnDebris = Math.max(0, (next.burnDebris || 0) - burnDebrisUsed);
+            return next;
+        });
         compostIdRef.current += 1;
-        setCompostBatches((prev) => [...prev, { id: compostIdRef.current, daysIn: 0, daysNeeded: COMPOST_DAYS, ready: false, burnDebrisUsed }]);
-        addLog(burnDebrisUsed ? `Started a compost pile with a small amount of charred debris — ready in ${COMPOST_DAYS} days with an extra mineral/nutrient bonus.` : `Started a compost pile — ready in ${COMPOST_DAYS} days.`);
+        setCompostBatches((prev) => [...prev, { id: compostIdRef.current, daysIn: 0, daysNeeded: stats.daysNeeded, ready: false, ingredients, nutrientScore: stats.nutrientScore, yieldCount: stats.yieldCount, burnDebrisUsed }]);
+        addLog(`Started compost with ${stats.total} item${stats.total === 1 ? '' : 's'}. ${stats.balanced ? 'Balanced greens and browns are heating efficiently.' : 'It will decompose, but adding both greens and browns will speed it up.'} Estimated ${stats.daysNeeded} days.`);
+    }
+    function addToCompostBatch(batchId) {
+        const additions = takeCompostables(inventory);
+        const addStats = compostStats(additions);
+        if (addStats.total < 1) {
+            addLog('No loose compostable materials are available to add right now.');
+            return;
+        }
+        setInventory((inv) => {
+            const next = { ...inv };
+            COMPOSTABLE_KEYS.forEach((k) => { next[k] = Math.max(0, (next[k] || 0) - (additions[k] || 0)); });
+            return next;
+        });
+        setCompostBatches((prev) => prev.map((b) => {
+            if (b.id !== batchId || b.ready) return b;
+            const ingredients = { ...(b.ingredients || {}) };
+            COMPOSTABLE_KEYS.forEach((k) => { ingredients[k] = (ingredients[k] || 0) + (additions[k] || 0); });
+            const stats = compostStats(ingredients);
+            return { ...b, ingredients, daysNeeded: Math.max(b.daysIn + 1, stats.daysNeeded), nutrientScore: stats.nutrientScore, yieldCount: stats.yieldCount };
+        }));
+        addLog(`Added ${addStats.total} item${addStats.total === 1 ? '' : 's'} to the compost. Bigger, balanced piles finish faster and make richer compost.`);
     }
     function collectCompost(batchId) {
         const batch = compostBatches.find((b) => b.id === batchId);
         if (!batch || !batch.ready)
             return;
-        const yieldCount = COMPOST_YIELD + (batch.burnDebrisUsed ? 1 : 0);
+        const yieldCount = (batch.yieldCount || COMPOST_YIELD) + (batch.burnDebrisUsed ? 1 : 0);
         setInventory((inv) => ({ ...inv, boostedSoils: { ...inv.boostedSoils, compost: inv.boostedSoils.compost + yieldCount } }));
         setCompostBatches((prev) => prev.filter((b) => b.id !== batchId));
         markDiscovered('material-homemadecompost');
-        addLog(`Collected ${yieldCount} bags of rich homemade compost${batch.burnDebrisUsed ? ' — the charred-debris amendment added extra mineral value' : ''}!`);
+        addLog(`Collected ${yieldCount} bags of homemade compost · nutrient score ${batch.nutrientScore || 1}.`);
     }
     function startFertilizerBatch(recipeId) {
         const recipe = FERTILIZER_RECIPES.find((r) => r.id === recipeId);
