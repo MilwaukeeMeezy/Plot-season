@@ -14,7 +14,12 @@
     <b>Plot & Season could not start.</b>
     <div id="startup-error-text" style="margin-top:8px;white-space:pre-wrap"></div>
   </div>
-  <script src="./startup.js?v=20260828-1614"></script>
-  <script src="./app.js?v=20260828-1614"></script>
+  <script src="./startup.js"></script>
+  <script>
+    // Always request the latest game code after a deployment instead of reusing a stale cached app.js.
+    const plotSeasonScript = document.createElement('script');
+    plotSeasonScript.src = './app.js?v=' + Date.now();
+    document.body.appendChild(plotSeasonScript);
+  </script>
 </body>
 </html>
