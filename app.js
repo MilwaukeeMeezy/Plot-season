@@ -3692,7 +3692,7 @@ function GardenGame() {
             else if (clickedSource)
                 addLog(`PVC connected to the ${clickedSource.kind === 'barrel' ? 'rain barrel' : 'spigot'}. Continue the run or click Finish Run.`);
             else
-                addLog(pipeWaypoints.length === 0 ? 'Pipe start set — click to add turns. Click a bed to snap to its edge.' : 'Turn added — click again, click a bed to snap a connector, or Finish Run.');
+                addLog(pipeWaypoints.length === 0 ? 'Pipe start set — click to add turns. Touch an existing PVC run to join its watering network, or click a bed to snap to its edge.' : 'Turn added — touch existing PVC to join that network, click a bed to snap a connector, or Finish Run.');
             return;
         }
         if (typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('greenhouse:')) {
@@ -3839,19 +3839,54 @@ function GardenGame() {
     function pipeEndpoints(pipe) {
         return [pipe.points[0], pipe.points[pipe.points.length - 1]];
     }
-    // A pipe is part of a network if its endpoints touch other pipe endpoints, chaining runs together.
+    function pointOnPipeSegment(pt, a, b) {
+        const eps = 0.001;
+        const cross = (pt.x - a.x) * (b.y - a.y) - (pt.y - a.y) * (b.x - a.x);
+        if (Math.abs(cross) > eps)
+            return false;
+        return pt.x >= Math.min(a.x, b.x) - eps && pt.x <= Math.max(a.x, b.x) + eps &&
+            pt.y >= Math.min(a.y, b.y) - eps && pt.y <= Math.max(a.y, b.y) + eps;
+    }
+    function pipeSegments(pipe) {
+        const pts = pipe.points || [];
+        if (pts.length < 2)
+            return [];
+        const out = [];
+        for (let i = 1; i < pts.length; i++)
+            out.push([pts[i - 1], pts[i]]);
+        return out;
+    }
+    function pipeRunsTouch(aPipe, bPipe) {
+        const aSegs = pipeSegments(aPipe);
+        const bSegs = pipeSegments(bPipe);
+        // Any endpoint landing anywhere on another run joins the systems.
+        for (const [a0, a1] of aSegs) {
+            for (const [b0, b1] of bSegs) {
+                if (pointOnPipeSegment(a0, b0, b1) || pointOnPipeSegment(a1, b0, b1) ||
+                    pointOnPipeSegment(b0, a0, a1) || pointOnPipeSegment(b1, a0, a1))
+                    return true;
+                // Also count a true segment crossing as a plumbing junction.
+                const orient = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+                const o1 = orient(a0, a1, b0), o2 = orient(a0, a1, b1);
+                const o3 = orient(b0, b1, a0), o4 = orient(b0, b1, a1);
+                if (((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) &&
+                    ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0)))
+                    return true;
+            }
+        }
+        return false;
+    }
+    // Touching PVC belongs to one watering network. A new run may join the end,
+    // side, or crossing of an existing run and inherits that network's source/bed connections.
     function pipeNetwork(pipe) {
         const visited = new Set([pipe.id]);
         const queue = [pipe];
         while (queue.length > 0) {
             const current = queue.pop();
-            const currentEnds = pipeEndpoints(current);
             for (const other of pipes) {
                 if (visited.has(other.id))
                     continue;
-                const otherEnds = pipeEndpoints(other);
-                const touches = currentEnds.some((a) => otherEnds.some((b) => pointsTouch(a, b)));
-                if (touches) {
+                if (pipeRunsTouch(current, other)) {
                     visited.add(other.id);
                     queue.push(other);
                 }
@@ -7789,7 +7824,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('bucket:') && 'Click open ground to place the planter bucket, then click the bucket to plant it.',
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('path:') && 'Click open ground squares to lay your pathway.',
                     selectedBuildMaterial === 'pvc' && (pipeWaypoints.length === 0
-                        ? 'Click a starting square, then click again for each turn — click an existing pipe\'s end to connect to it. Click Finish Run when done. Use the red ✕ on any existing PVC run to pick it back up.'
+                        ? 'Click a starting square, then click again for each turn. Any PVC that touches an existing PVC run becomes part of the same watering system — it can join at an end, along the side, or at a crossing. Click Finish Run when done. Use the red ✕ on any existing PVC run to pick it back up.'
                         : `${pipeWaypoints.length} point${pipeWaypoints.length === 1 ? '' : 's'} placed — click to add more turns, or Finish Run below.`),
                     ['wood', 'aluminum', 'cement', 'sticks'].includes(selectedBuildMaterial) &&
                         `Drag across the grid to paint a ${selectedBuildMaterial === 'sticks' ? 'sticks' : selectedBuildMaterial} bed, square by square. Uses 1 sq ft of material per square. Tap ✕ to remove (no refund).`)),
