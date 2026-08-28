@@ -5571,7 +5571,7 @@ function GardenGame() {
         { id: 'nursery', label: 'Plant Nursery', icon: '🏬' },
         { id: 'extension', label: 'Extension', icon: '🏛️' },
         enabledMethods.indoor ? { id: 'indoor', label: 'Start Indoor', icon: '🪴' } : null,
-        enabledMethods.beds || enabledMethods.sow ? { id: 'yard', label: 'Yard', icon: '🏡' } : null,
+        { id: 'yard', label: 'Yard', icon: '🏡' },
         { id: 'character', label: 'Character', icon: '🧑‍🌾' },
         { id: 'catalog', label: 'Garden Catalog', icon: '📖' },
         { id: 'sunmap', label: 'Chasing the Sun', icon: '☀️' },
