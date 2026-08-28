@@ -3316,8 +3316,16 @@ function GardenGame() {
         basketItemIdRef.current += 1;
         setBasketItems((prev) => { var _a; return [...prev, { id: basketItemIdRef.current, plantId: p.id, name: p.name, emoji: p.emoji, value, daysIn: 0, sellable, health: Math.max(0, Math.min(100, (_a = p.health) !== null && _a !== void 0 ? _a : 100)), qualityTier: tier, seedsAlreadyCollected: !!p.seedsCollected }]; });
         if (p.repeatHarvest) {
-            setGreenhouses((prev) => prev.map((x) => x.id === greenhouseId ? { ...x, plants: x.plants.map((plant, i) => i === slotIdx ? nextStateAfterHarvest(plant) : plant) } : x));
-            addLog(`Harvested ${p.name} from the greenhouse; this indeterminate plant will keep producing.`);
+            const next = nextStateAfterHarvest(p);
+            if (next.exhausted) {
+                clearGreenhousePlant(greenhouseId, slotIdx);
+                setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
+                addLog(`Harvested ${p.name} for the ${next.harvestCount}th time. Its production cycle is finished; the spent plant became compost greens and must be replanted.`);
+            }
+            else {
+                setGreenhouses((prev) => prev.map((x) => x.id === greenhouseId ? { ...x, plants: x.plants.map((plant, i) => i === slotIdx ? next : plant) } : x));
+                addLog(`Harvested ${p.name} from the greenhouse (${next.harvestCount}/4 minimum harvests). It will produce again.`);
+            }
         }
         else {
             clearGreenhousePlant(greenhouseId, slotIdx);
@@ -4493,11 +4501,13 @@ function GardenGame() {
             return;
         }
         if (sq && (sq.dead || sq.harvested)) {
-            if (sq.dead)
-                setInventory((inv) => ({ ...inv, deadMatter: inv.deadMatter + 1 }));
+            if (sq.dead || sq.exhausted)
+                setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
             setBeds((prev) => prev.map((b) => (b.id === bedId ? { ...b, plants: b.plants.filter((p) => !(p.sx === sx && p.sy === sy)) } : b)));
             if (sq.dead)
                 addLog(`Cleared the dead ${sq.name} — added to your compost matter.`);
+            else if (sq.exhausted)
+                addLog(`Removed spent ${sq.name} after ${sq.harvestCount || 4} harvests — the residue became compost greens. Replant for a new crop cycle.`);
             return;
         }
         if (sq && !sq.dead && !sq.harvested && sq.age >= sq.daysToMature) {
@@ -4558,11 +4568,13 @@ function GardenGame() {
             return;
         }
         if (sq && (sq.dead || sq.harvested)) {
-            if (sq.dead)
-                setInventory((inv) => ({ ...inv, deadMatter: inv.deadMatter + 1 }));
+            if (sq.dead || sq.exhausted)
+                setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
             setGroundPlants((prev) => prev.filter((p) => !(p.gx === gx && p.gy === gy)));
             if (sq.dead)
                 addLog(`Cleared the dead ${sq.name} — added to your compost matter.`);
+            else if (sq.exhausted)
+                addLog(`Removed spent ${sq.name} after ${sq.harvestCount || 4} harvests — the residue became compost greens. Replant for a new crop cycle.`);
             return;
         }
         if (sq && !sq.dead && !sq.harvested && sq.age >= sq.daysToMature) {
@@ -7335,9 +7347,7 @@ function StartIndoorTab({ trays, inventory, zone, selectedPlant, selectedPlantId
                             (b.yieldCount || COMPOST_YIELD) + (b.burnDebrisUsed ? 1 : 0),
                             " bags")))))),
                 React.createElement("div", { style: styles.hint },
-                    "Real compost science: mix nitrogen-rich \"greens\" (dead plant matter) with carbon-rich \"browns\" (leaves, cardboard), plus a bit of soil to kick things off. Takes ",
-                    COMPOST_DAYS,
-                    " days to fully break down \u2014 worth the wait, since homemade compost gives your beds a real nutrient boost.")),
+                    "Real compost science: a pile can start with any compostable material. More mass builds heat; mixing nitrogen-rich greens with carbon-rich browns speeds decomposition. As you add useful organic matter, the nutrient score and finished-compost yield rise.")),
             React.createElement("div", { style: styles.sidebar },
                 React.createElement("div", { style: styles.shopPanel },
                     React.createElement("div", { style: styles.panelTitle }, "Start / Feed Compost"),
@@ -7346,8 +7356,7 @@ function StartIndoorTab({ trays, inventory, zone, selectedPlant, selectedPlantId
                             React.createElement("span", null, "\uD83C\uDF43 Compost greens"),
                             React.createElement("span", { style: { fontWeight: 700, color: inventory.deadMatter >= COMPOST_RECIPE.deadMatter ? '#5C7A4F' : '#A33' } },
                                 inventory.deadMatter,
-                                " / ",
-                                COMPOST_RECIPE.deadMatter)),
+                                " available")),
                         React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between' } },
                             React.createElement("span", null, "🪵 Charred debris (optional)"),
                             React.createElement("span", { style: { fontWeight: 700, color: (inventory.burnDebris || 0) > 0 ? '#5C7A4F' : '#6b5844' } }, inventory.burnDebris || 0)),
@@ -7357,21 +7366,19 @@ function StartIndoorTab({ trays, inventory, zone, selectedPlant, selectedPlantId
                                 " Leaves"),
                             React.createElement("span", { style: { fontWeight: 700, color: inventory.leaves >= COMPOST_RECIPE.leaves ? '#5C7A4F' : '#A33' } },
                                 inventory.leaves,
-                                " / ",
-                                COMPOST_RECIPE.leaves)),
+                                " available")),
                         React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between' } },
                             React.createElement("span", null,
                                 CARDBOARD_ITEM.icon,
                                 " Cardboard"),
                             React.createElement("span", { style: { fontWeight: 700, color: inventory.cardboard >= COMPOST_RECIPE.cardboard ? '#5C7A4F' : '#A33' } },
                                 inventory.cardboard,
-                                " / ",
-                                COMPOST_RECIPE.cardboard)),
+                                " available")),
                         React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between' } },
-                            React.createElement("span", null, "\uD83E\uDEB1 Any soil bag"),
-                            React.createElement("span", { style: { fontWeight: 700, color: SOILS.some((s) => (inventory.soils[s.id] || 0) >= COMPOST_RECIPE.soil) ? '#5C7A4F' : '#A33' } },
-                                COMPOST_RECIPE.soil,
-                                " needed"))),
+                            React.createElement("span", null, "☕ Coffee grounds"),
+                            React.createElement("span", { style: { fontWeight: 700, color: (inventory.coffeegrounds || 0) > 0 ? '#5C7A4F' : '#6b5844' } },
+                                inventory.coffeegrounds || 0,
+                                " available"))),
                     React.createElement("button", { style: { ...styles.buyBtn, marginTop: 10 }, onClick: startCompostBatch }, "Compost Everything Available"),
                     React.createElement("div", { style: { fontSize: 10, color: '#6b5844', marginTop: 8 } }, "Start as soon as you have even one compostable item. This uses all loose compostables you currently have. Afterward, collect more and press Add Materials to make the pile richer and faster. Pokeweed must be disposed of separately."))))),
         indoorSubTab === 'fertilizer' && (React.createElement("div", { style: styles.mainArea },
@@ -7527,9 +7534,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                                     (b.yieldCount || COMPOST_YIELD) + (b.burnDebrisUsed ? 1 : 0),
                                     " bags")))))),
                         React.createElement("div", { style: styles.hint },
-                            "Real compost science: mix nitrogen-rich \"greens\" (dead plant matter) with carbon-rich \"browns\" (leaves, cardboard), plus a bit of soil to kick things off. Takes ",
-                            COMPOST_DAYS,
-                            " days to fully break down \u2014 worth the wait, since homemade compost gives your beds a real nutrient boost.")),
+                            "Real compost science: a pile can start with any compostable material. More mass builds heat; mixing nitrogen-rich greens with carbon-rich browns speeds decomposition. As you add useful organic matter, the nutrient score and finished-compost yield rise.")),
                     React.createElement("div", { style: { ...styles.sidebar, flex: '0 1 280px' } },
                         React.createElement("div", { style: styles.shopPanel },
                             React.createElement("div", { style: styles.panelTitle }, "Start / Feed Compost"),
@@ -7538,8 +7543,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                                     React.createElement("span", null, "\uD83C\uDF43 Compost greens"),
                                     React.createElement("span", { style: { fontWeight: 700, color: inventory.deadMatter >= COMPOST_RECIPE.deadMatter ? '#5C7A4F' : '#A33' } },
                                         inventory.deadMatter,
-                                        " / ",
-                                        COMPOST_RECIPE.deadMatter)),
+                                        " available")),
                                 React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between' } },
                                     React.createElement("span", null, "🪵 Charred debris (optional)"),
                                     React.createElement("span", { style: { fontWeight: 700, color: (inventory.burnDebris || 0) > 0 ? '#5C7A4F' : '#6b5844' } }, inventory.burnDebris || 0)),
@@ -7549,21 +7553,19 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                                         " Leaves"),
                                     React.createElement("span", { style: { fontWeight: 700, color: inventory.leaves >= COMPOST_RECIPE.leaves ? '#5C7A4F' : '#A33' } },
                                         inventory.leaves,
-                                        " / ",
-                                        COMPOST_RECIPE.leaves)),
+                                        " available")),
                                 React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between' } },
                                     React.createElement("span", null,
                                         CARDBOARD_ITEM.icon,
                                         " Cardboard"),
                                     React.createElement("span", { style: { fontWeight: 700, color: inventory.cardboard >= COMPOST_RECIPE.cardboard ? '#5C7A4F' : '#A33' } },
                                         inventory.cardboard,
-                                        " / ",
-                                        COMPOST_RECIPE.cardboard)),
+                                        " available")),
                                 React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between' } },
-                                    React.createElement("span", null, "\uD83E\uDEB1 Any soil bag"),
-                                    React.createElement("span", { style: { fontWeight: 700, color: SOILS.some((s) => (inventory.soils[s.id] || 0) >= COMPOST_RECIPE.soil) ? '#5C7A4F' : '#A33' } },
-                                        COMPOST_RECIPE.soil,
-                                        " needed"))),
+                                    React.createElement("span", null, "☕ Coffee grounds"),
+                                    React.createElement("span", { style: { fontWeight: 700, color: (inventory.coffeegrounds || 0) > 0 ? '#5C7A4F' : '#6b5844' } },
+                                        inventory.coffeegrounds || 0,
+                                        " available"))),
                             React.createElement("button", { style: { ...styles.buyBtn, marginTop: 10 }, onClick: startCompostBatch }, "Compost Everything Available"),
                             React.createElement("div", { style: { fontSize: 10, color: '#6b5844', marginTop: 8 } }, "Start as soon as you have even one compostable item. This uses all loose compostables you currently have. Afterward, collect more and press Add Materials to make the pile richer and faster. Pokeweed must be disposed of separately."))))),
                 (mode === 'build' || mode === 'water') && pipes.length > 0 && (React.createElement("div", { style: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', margin: '8px 0', padding: '7px 9px', background: '#F7F2E7', border: '1px solid #C9B98F', borderRadius: 5, fontSize: 10, color: '#4A3728' } },
