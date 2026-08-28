@@ -1123,7 +1123,7 @@ function germinationSuccessFor(plant, soil, light, boosted) {
         success = Math.min(0.98, success * light.successMult);
     return success;
 }
-const FIRST_TIME_GUIDE_KEY = 'plotandseason-first-time-guides-v1';
+const FIRST_TIME_GUIDE_KEY = 'plotandseason-first-time-guides-v2';
 const FIRST_TIME_GUIDES = {
     title: {
         icon: '🌱',
@@ -1334,6 +1334,7 @@ function GardenGame() {
             return {};
         }
     });
+    const [contextLesson, setContextLesson] = useState(null);
     const [cash, setCash] = useState(STARTING_CASH_DEFAULT);
     const [day, setDay] = useState(1);
     const [seasonIdx, setSeasonIdx] = useState(0);
@@ -1476,11 +1477,22 @@ function GardenGame() {
         if (mode !== 'burn' && activeBurn && !activeBurn.ignited)
             setActiveBurn(null);
     }, [mode, activeBurn]);
+    useEffect(() => {
+        if (activeTab === 'yard' && !seenGuides['learn-meet-yard']) {
+            setContextLesson('learn-meet-yard');
+        }
+    }, [activeTab, seenGuides]);
+    useEffect(() => {
+        if (activeTab === 'yard' && mode === 'plant' && selectedPlantId && !seenGuides['learn-plant-ready']) {
+            setContextLesson('learn-plant-ready');
+        }
+    }, [activeTab, mode, selectedPlantId, seenGuides]);
     const addLog = useCallback((msg) => setLog((l) => [msg, ...l].slice(0, 6)), []);
     const markDiscovered = useCallback((key) => setDiscovered((d) => (d[key] ? d : { ...d, [key]: true })), []);
     const invNumber = (value) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
     function openSettings() { setSettingsReturnScreen(screen); setScreen('settings'); }
     function dismissFirstTimeGuide(guideKey) {
+        setContextLesson((current) => current === guideKey ? null : current);
         setSeenGuides((prev) => {
             const next = { ...prev, [guideKey]: true };
             try {
@@ -5785,8 +5797,8 @@ function GardenGame() {
                 React.createElement("span", { style: { fontSize: 16 } }, t.icon),
                 React.createElement("span", null, t.label)))),
             isPlanning && (React.createElement("button", { style: styles.startSeasonBtn, onClick: () => setIsPlanning(false) }, "Start Growing Season \u2192"))),
-        !pestEncounter && React.createElement(FirstTimeGuide, { guideKey: activeTab === 'yard' ? 'learn-meet-yard' : `tab-${activeTab}`, seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }),
-        !pestEncounter && activeTab === 'yard' && mode === 'plant' && selectedPlant && React.createElement(FirstTimeGuide, { guideKey: 'learn-plant-ready', seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }),
+        !pestEncounter && contextLesson && React.createElement(FirstTimeGuide, { guideKey: contextLesson, seenGuides: {}, onDismiss: dismissFirstTimeGuide }),
+        !pestEncounter && !contextLesson && activeTab !== 'yard' && React.createElement(FirstTimeGuide, { guideKey: `tab-${activeTab}`, seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }),
         pestEncounter && React.createElement(FirstTimeGuide, { guideKey: "pest-game", seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }),
         pendingTransplant && (React.createElement("div", { style: styles.transplantBanner },
             "Transplanting ",
