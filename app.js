@@ -1335,6 +1335,7 @@ function GardenGame() {
         }
     });
     const [contextLesson, setContextLesson] = useState(null);
+    const [plantLessonTriggered, setPlantLessonTriggered] = useState(false);
     const [cash, setCash] = useState(STARTING_CASH_DEFAULT);
     const [day, setDay] = useState(1);
     const [seasonIdx, setSeasonIdx] = useState(0);
@@ -1483,10 +1484,21 @@ function GardenGame() {
         }
     }, [activeTab, seenGuides]);
     useEffect(() => {
-        if (activeTab === 'yard' && mode === 'plant' && selectedPlantId && !seenGuides['learn-plant-ready']) {
+        if (activeTab === 'yard' && mode === 'plant' && selectedPlantId && !seenGuides['learn-plant-ready'] && !plantLessonTriggered) {
+            // One-shot trigger: mark it immediately when the first crop is selected so
+            // React/state changes in the same selection flow cannot queue the lesson twice.
+            setPlantLessonTriggered(true);
+            setSeenGuides((prev) => {
+                const next = { ...prev, 'learn-plant-ready': true };
+                try {
+                    window.localStorage.setItem(FIRST_TIME_GUIDE_KEY, JSON.stringify(next));
+                }
+                catch (e) { }
+                return next;
+            });
             setContextLesson('learn-plant-ready');
         }
-    }, [activeTab, mode, selectedPlantId, seenGuides]);
+    }, [activeTab, mode, selectedPlantId, seenGuides, plantLessonTriggered]);
     const addLog = useCallback((msg) => setLog((l) => [msg, ...l].slice(0, 6)), []);
     const markDiscovered = useCallback((key) => setDiscovered((d) => (d[key] ? d : { ...d, [key]: true })), []);
     const invNumber = (value) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
