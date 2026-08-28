@@ -1424,6 +1424,7 @@ function GardenGame() {
     const [discovered, setDiscovered] = useState({});
     const [score, setScore] = useState(0);
     const [gardenGoals, setGardenGoals] = useState({ harvests: 0, compostStarted: 0, plantsWatered: 0 });
+    const [selectedJournalPlantId, setSelectedJournalPlantId] = useState(null);
     const [log, setLog] = useState(['Welcome to the garden.']);
     const [quizOpen, setQuizOpen] = useState(false);
     const [soilHealthOpen, setSoilHealthOpen] = useState(false);
@@ -2185,6 +2186,7 @@ function GardenGame() {
                 const adjustedInfestChance = PEST_INFEST_CHANCE * (1 - predatorPrevention) * (1 - cedarPrevention) * (1 - trellisAirflowProtection) * (1 - netProtection);
                 if (Math.random() < adjustedInfestChance) {
                     pest = candidatePest;
+                    markDiscovered(`pest-${p.id}-${pest}`);
                     needsLog.push(`${PESTS[pest].icon} ${p.name} has been infested with ${PESTS[pest].name}!`);
                     const bestBugs = [...BENEFICIAL_BUGS].filter((b) => beneficialEffectForPest(b, pest) > 0).sort((a, b) => beneficialEffectForPest(b, pest) - beneficialEffectForPest(a, pest)).slice(0, 2);
                     newPestAlerts.push({
@@ -4146,6 +4148,7 @@ function GardenGame() {
         else {
             setGroundPlants((prev) => [...prev, { ...newPlant, gx: sx, gy: sy }]);
         }
+        markDiscovered(`planted-${selectedPlant.id}`);
         addLog(`Planted ${selectedPlant.name} (${selectedSource === 'seed' ? 'seed' : 'live plant'}).`);
     }
     function fillBedSoil(bedId, soilId, useBoosted) {
@@ -4778,6 +4781,7 @@ function GardenGame() {
         const yieldCount = Math.floor(Math.random() * 3) + 2; // 2-4 seeds
         addSeed(sq.id, yieldCount);
         setBeds((prev) => prev.map((b) => (b.id === bedId ? { ...b, plants: b.plants.map((p) => (p.sx === sx && p.sy === sy ? { ...p, seedsCollected: true } : p)) } : b)));
+        markDiscovered(`seedsaved-${sq.id}`);
         addLog(`Collected ${yieldCount} ${sq.name} seeds.`);
     }
     function collectSeedsFromGroundSquare(gx, gy) {
@@ -5587,6 +5591,99 @@ function GardenGame() {
     ];
     const activeJourneyGoals = journeyGoals.filter((g) => g.value < g.target).slice(0, 3);
     const completedJourneyGoals = journeyGoals.filter((g) => g.value >= g.target).length;
+
+    function renderGardenJournal() {
+        const knownPlants = PLANTS.filter((p) =>
+            discovered[`seed-${p.id}`] ||
+            discovered[`plant-${p.id}`] ||
+            discovered[`planted-${p.id}`] ||
+            discovered[`water-${p.id}`] ||
+            discovered[`harvest-${p.id}`] ||
+            discovered[`seedsaved-${p.id}`] ||
+            Object.keys(discovered).some((k) => k.startsWith(`pest-${p.id}-`))
+        );
+        const selected = (selectedJournalPlantId && knownPlants.find((p) => p.id === selectedJournalPlantId)) || knownPlants[0] || null;
+        if (!selected) {
+            return React.createElement("div", { style: { ...styles.shopPanel, marginTop: 14 } },
+                React.createElement("div", { style: styles.panelTitle }, "📔 Garden Journal"),
+                React.createElement("div", { style: { fontSize: 12, color: '#6b5844' } }, "Your journal is blank. Buy or plant your first crop to begin."));
+        }
+        const p = selected;
+        const planted = !!discovered[`planted-${p.id}`];
+        const watered = !!discovered[`water-${p.id}`];
+        const harvested = !!discovered[`harvest-${p.id}`];
+        const seedSaved = !!discovered[`seedsaved-${p.id}`];
+        const pestNames = Object.keys(discovered)
+            .filter((k) => k.startsWith(`pest-${p.id}-`))
+            .map((k) => {
+                const pestId = k.slice((`pest-${p.id}-`).length);
+                return PESTS[pestId] ? PESTS[pestId].name : pestId;
+            });
+        const waterText = p.waterNeed === 'high'
+            ? 'High — prefers regular/deep watering'
+            : p.waterNeed === 'med'
+                ? 'Moderate'
+                : 'Low — tolerates drier soil';
+        const harvestWindow = p.harvestMonths && p.harvestMonths.length ? p.harvestMonths.join(', ') : 'Season-based';
+        const milestoneCount = (plant) => [
+            discovered[`planted-${plant.id}`],
+            discovered[`water-${plant.id}`],
+            discovered[`harvest-${plant.id}`],
+            discovered[`seedsaved-${plant.id}`]
+        ].filter(Boolean).length;
+        return React.createElement("div", { style: { ...styles.shopPanel, marginTop: 14 } },
+            React.createElement("div", { style: styles.panelTitle }, "📔 Garden Journal"),
+            React.createElement("div", { style: { fontSize: 12, color: '#6b5844', marginBottom: 10 } },
+                "Every crop gets its own page. Facts unlock as you actually work with that crop."),
+            React.createElement("div", { style: { display: 'grid', gridTemplateColumns: '220px 1fr', gap: 14, alignItems: 'start' } },
+                React.createElement("div", { style: { maxHeight: 430, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 } },
+                    knownPlants.map((plant) => React.createElement("button", {
+                        key: plant.id,
+                        type: "button",
+                        onClick: () => setSelectedJournalPlantId(plant.id),
+                        style: { ...styles.seedRow, ...(plant.id === p.id ? styles.seedRowActive : {}), width: '100%', cursor: 'pointer' }
+                    },
+                        React.createElement("span", { style: { fontSize: 22 } }, plant.emoji),
+                        React.createElement("span", { style: { flex: 1, textAlign: 'left', marginLeft: 7 } },
+                            React.createElement("div", { style: { fontWeight: 800, fontSize: 12 } }, plant.name),
+                            React.createElement("div", { style: { fontSize: 9, opacity: 0.7 } }, milestoneCount(plant) + "/4 milestones"))))),
+                React.createElement("div", { style: { background: '#FFFDF6', border: '1.5px solid #C9B98F', borderRadius: 9, padding: 15 } },
+                    React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 } },
+                        React.createElement("span", { style: { fontSize: 38 } }, p.emoji),
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 19, fontWeight: 900 } }, p.name),
+                            React.createElement("div", { style: { fontSize: 10, color: '#6b5844', textTransform: 'capitalize' } }, p.category || 'garden plant'))),
+                    React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(175px,1fr))', gap: 8 } },
+                        React.createElement("div", { style: { padding: 9, background: '#F7F2E7', borderRadius: 6 } },
+                            React.createElement("strong", null, "🌱 Growing"),
+                            React.createElement("div", { style: { fontSize: 11, marginTop: 4 } }, planted ? "Matures in about " + p.daysToMature + " game days" : "??? Plant it to learn."),
+                            React.createElement("div", { style: { fontSize: 11 } }, planted ? "Zones " + (p.minZone || 1) + "–" + (p.maxZone || 13) : "???")),
+                        React.createElement("div", { style: { padding: 9, background: '#F7F2E7', borderRadius: 6 } },
+                            React.createElement("strong", null, "💧 Water"),
+                            React.createElement("div", { style: { fontSize: 11, marginTop: 4 } }, watered ? waterText : "??? Water this crop yourself to learn.")),
+                        React.createElement("div", { style: { padding: 9, background: '#F7F2E7', borderRadius: 6 } },
+                            React.createElement("strong", null, "🧪 Soil"),
+                            React.createElement("div", { style: { fontSize: 11, marginTop: 4 } }, planted && p.phMin != null ? "Preferred pH " + p.phMin + "–" + p.phMax : "???"),
+                            React.createElement("div", { style: { fontSize: 11 } }, planted ? "Preferred soil: " + (p.soilPref || 'general garden soil') : "???")),
+                        React.createElement("div", { style: { padding: 9, background: '#F7F2E7', borderRadius: 6 } },
+                            React.createElement("strong", null, "🧺 Harvest"),
+                            React.createElement("div", { style: { fontSize: 11, marginTop: 4 } }, harvested ? "Base value $" + (p.sellValue || 0) : "??? Harvest it to learn."),
+                            React.createElement("div", { style: { fontSize: 11 } }, harvested ? "Harvest window: " + harvestWindow : "???"))),
+                    React.createElement("div", { style: { marginTop: 12, fontWeight: 900, fontSize: 12 } }, "Personal Milestones"),
+                    React.createElement("div", { style: { fontSize: 11, marginTop: 5, lineHeight: 1.8 } },
+                        (planted ? "✓ " : "○ ") + "Planted   ",
+                        (watered ? "✓ " : "○ ") + "Watered   ",
+                        (harvested ? "✓ " : "○ ") + "Harvested   ",
+                        (seedSaved ? "✓ " : "○ ") + "Seed Saver"),
+                    React.createElement("div", { style: { marginTop: 12, fontWeight: 900, fontSize: 12 } }, "🐛 Problems Encountered"),
+                    React.createElement("div", { style: { fontSize: 11, color: '#6b5844', marginTop: 4 } },
+                        pestNames.length ? pestNames.join(', ') : "None recorded yet. If this crop gets a pest, the journal will remember it."),
+                    p.climateNote && harvested
+                        ? React.createElement("div", { style: { marginTop: 12, padding: 9, background: '#FFF8DF', borderRadius: 6, fontSize: 11 } }, "📝 Field note: ", p.climateNote)
+                        : null)),
+            React.createElement("div", { style: { marginTop: 9, fontSize: 10, color: '#6b5844' } },
+                knownPlants.length, " of ", PLANTS.length, " plant pages discovered."));
+    }
     const tabs = [
         { id: 'nursery', label: 'Plant Nursery', icon: '🏬' },
         { id: 'extension', label: 'Extension', icon: '🏛️' },
@@ -5668,13 +5765,7 @@ function GardenGame() {
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 15 } }, goal.title),
                     React.createElement("div", { style: { fontSize: 11, color: '#6b5844', margin: '5px 0 8px' } }, goal.desc),
                     React.createElement("div", { style: { fontWeight: 800, color: goal.value >= goal.target ? '#5C7A4F' : '#6b5844' } }, goal.value >= goal.target ? '✓ Complete' : goal.value + '/' + goal.target)))),
-            React.createElement("div", { style: { ...styles.shopPanel, marginTop: 14 } },
-                React.createElement("div", { style: styles.panelTitle }, "📔 Garden Journal"),
-                React.createElement("div", { style: { fontSize: 12, color: '#6b5844', marginBottom: 8 } }, "Knowledge appears here because you experienced it — not because the game handed you an encyclopedia."),
-                React.createElement("div", { style: { fontSize: 12, lineHeight: 1.7 } },
-                    Object.keys(discovered).length
-                        ? Object.keys(discovered).length + " discoveries recorded. Keep growing, harvesting, saving seed, composting, managing pests, and experimenting with soil and water."
-                        : "Your journal is blank. Plant something and begin experimenting."))),
+            renderGardenJournal()),
         !pestEncounter && activeTab === 'character' && (React.createElement(CharacterTab, { avatar: avatar, inventory: inventory, equippedClothes: equippedClothes, setEquippedClothes: setEquippedClothes, showAvatarInYard: showAvatarInYard, setShowAvatarInYard: setShowAvatarInYard, onUpdateGardener: () => { setEditingGardenerFromGame(true); setScreen('avatar'); } })),
         !pestEncounter && activeTab === 'catalog' && React.createElement(CatalogTab, { discovered: discovered }),
         !pestEncounter && activeTab === 'sunmap' && React.createElement(SunMapTab, null),
