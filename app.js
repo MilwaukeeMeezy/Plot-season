@@ -3472,35 +3472,6 @@ function GardenGame() {
         setInventory((inv) => { var _a; return ({ ...inv, pondFish: { ...inv.pondFish, [fishId]: (((_a = inv.pondFish) === null || _a === void 0 ? void 0 : _a[fishId]) || 0) + 1 } }); });
         addLog(`Returned one ${fish.name} from the pond to inventory.`);
     }
-    function cattlePanelFootprint(t) {
-        const type = TRELLIS_TYPES.find((x) => x.id === t.typeId);
-        return { w: t.w || type?.footprintW || 1, h: t.h || type?.footprintH || 1 };
-    }
-    function cattlePanelCoversCell(t, gx, gy) {
-        if (!t || t.typeId !== 'cattlepanel')
-            return false;
-        const fp = cattlePanelFootprint(t);
-        return gx >= t.x && gx < t.x + fp.w && gy >= t.y && gy < t.y + fp.h;
-    }
-    function cattlePanelAreaClear(x, y, w, h) {
-        if (x < 0 || y < 0 || x + w > GRID_COLS || y + h > GRID_ROWS)
-            return false;
-        for (let gx = x; gx < x + w; gx++) {
-            for (let gy = y; gy < y + h; gy++) {
-                if (greenhouses.some((g) => gx >= g.x && gx < g.x + g.w && gy >= g.y && gy < g.y + g.h) ||
-                    ponds.some((p) => gx >= p.x && gx < p.x + p.w && gy >= p.y && gy < p.y + p.h) ||
-                    planterBuckets.some((p) => p.x === gx && p.y === gy) ||
-                    treeContainers.some((p) => p.x === gx && p.y === gy) ||
-                    barrels.some((p) => p.x === gx && p.y === gy) ||
-                    spigots.some((p) => p.x === gx && p.y === gy) ||
-                    groundObstacles.some((o) => o.gx === gx && o.gy === gy) ||
-                    trellises.some((t) => t.typeId === 'cattlepanel' && cattlePanelCoversCell(t, gx, gy)) ||
-                    trellises.some((t) => t.typeId !== 'cattlepanel' && t.x === gx && t.y === gy))
-                    return false;
-            }
-        }
-        return true;
-    }
     function placeTrellis(typeId, x, y) {
         var _a;
         const type = TRELLIS_TYPES.find((t) => t.id === typeId);
@@ -3512,19 +3483,42 @@ function GardenGame() {
             return;
         }
         if (typeId === 'cattlepanel') {
-            const w = type.footprintW || 3, h = type.footprintH || 2;
-            const placeX = Math.max(0, Math.min(GRID_COLS - w, x - Math.floor(w / 2)));
-            const placeY = Math.max(0, Math.min(GRID_ROWS - h, y - Math.floor(h / 2)));
-            if (!cattlePanelAreaClear(placeX, placeY, w, h)) {
-                addLog(`The ${type.name} needs a clear ${w}×${h} footprint. Click near the middle of the bed/ground area you want to cover. Beds and crops are allowed underneath, but buildings, ponds, pots, trees, barrels, and other trellises are not.`);
+            const w = type.footprintW || 3;
+            const h = type.footprintH || 2;
+            const px = Math.max(0, Math.min(GRID_COLS - w, x - Math.floor(w / 2)));
+            const py = Math.max(0, Math.min(GRID_ROWS - h, y - Math.floor(h / 2)));
+            let blocked = false;
+            for (let gx = px; gx < px + w && !blocked; gx++) {
+                for (let gy = py; gy < py + h; gy++) {
+                    const occupiedByStructure =
+                        greenhouses.some((g) => gx >= g.x && gx < g.x + g.w && gy >= g.y && gy < g.y + g.h) ||
+                        ponds.some((p) => gx >= p.x && gx < p.x + p.w && gy >= p.y && gy < p.y + p.h) ||
+                        planterBuckets.some((p) => p.x === gx && p.y === gy) ||
+                        treeContainers.some((p) => p.x === gx && p.y === gy) ||
+                        barrels.some((p) => p.x === gx && p.y === gy) ||
+                        spigots.some((p) => p.x === gx && p.y === gy) ||
+                        groundObstacles.some((o) => o.gx === gx && o.gy === gy) ||
+                        trellises.some((t) => {
+                            const tw = t.typeId === 'cattlepanel' ? (t.w || 3) : 1;
+                            const th = t.typeId === 'cattlepanel' ? (t.h || 2) : 1;
+                            return gx >= t.x && gx < t.x + tw && gy >= t.y && gy < t.y + th;
+                        });
+                    if (occupiedByStructure) {
+                        blocked = true;
+                        break;
+                    }
+                }
+            }
+            if (blocked) {
+                addLog('The Cattle Panel Arch can cover beds and crops, but not buildings, ponds, containers, obstacles, or another trellis. Click near the center of the area you want to cover.');
                 return;
             }
             trellisIdRef.current += 1;
-            setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [typeId]: Math.max(0, (inv.trellises?.[typeId] || 0) - 1) } }));
-            setTrellises((prev) => [...prev, { id: trellisIdRef.current, typeId, x: placeX, y: placeY, w, h }]);
+            setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [typeId]: Math.max(0, ((inv.trellises && inv.trellises[typeId]) || 0) - 1) } }));
+            setTrellises((prev) => [...prev, { id: trellisIdRef.current, typeId, x: px, y: py, w, h }]);
             if (owned <= 1)
                 setSelectedBuildMaterial(null);
-            addLog(`Placed ${type.name}. You can plant vining crops directly underneath the arch; they will climb up the sides and over the top.`);
+            addLog('Placed Cattle Panel Arch. Plant vining crops underneath it; they will climb the sides and over the top.');
             return;
         }
         if (cellOccupied(x, y)) {
@@ -3532,7 +3526,7 @@ function GardenGame() {
             return;
         }
         trellisIdRef.current += 1;
-        setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [typeId]: Math.max(0, (inv.trellises?.[typeId] || 0) - 1) } }));
+        setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [typeId]: Math.max(0, ((inv.trellises && inv.trellises[typeId]) || 0) - 1) } }));
         setTrellises((prev) => [...prev, { id: trellisIdRef.current, typeId, x, y }]);
         if (owned <= 1)
             setSelectedBuildMaterial(null);
@@ -3543,13 +3537,17 @@ function GardenGame() {
         if (!item)
             return;
         setTrellises((prev) => prev.filter((t) => t.id !== id));
-        setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [item.typeId]: (inv.trellises?.[item.typeId] || 0) + 1 } }));
+        setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [item.typeId]: (((inv.trellises && inv.trellises[item.typeId]) || 0) + 1) } }));
         addLog('Trellis returned to inventory.');
     }
     function trellisNearCell(gx, gy) {
-        return trellises.find((t) => t.typeId === 'cattlepanel'
-            ? cattlePanelCoversCell(t, gx, gy)
-            : Math.abs(t.x - gx) + Math.abs(t.y - gy) === 1) || null;
+        return trellises.find((t) => {
+            if (t.typeId === 'cattlepanel') {
+                const w = t.w || 3, h = t.h || 2;
+                return gx >= t.x && gx < t.x + w && gy >= t.y && gy < t.y + h;
+            }
+            return Math.abs(t.x - gx) + Math.abs(t.y - gy) === 1;
+        }) || null;
     }
     function netForPlantLocation(plant, location) {
         if (!plant || !location)
@@ -3595,7 +3593,7 @@ function GardenGame() {
         return null;
     }
     function cellOccupied(x, y) {
-        return beds.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) || greenhouses.some((g) => x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h) || ponds.some((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) || trellises.some((t) => t.typeId === 'cattlepanel' ? cattlePanelCoversCell(t, x, y) : (t.x === x && t.y === y)) || planterBuckets.some((c) => c.x === x && c.y === y) || treeContainers.some((c) => c.x === x && c.y === y) || barrels.some((br) => br.x === x && br.y === y) || spigots.some((sp) => sp.x === x && sp.y === y) || groundObstacles.some((o) => o.gx === x && o.gy === y);
+        return beds.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) || greenhouses.some((g) => x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h) || ponds.some((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) || trellises.some((t) => t.typeId !== 'cattlepanel' && t.x === x && t.y === y) || planterBuckets.some((c) => c.x === x && c.y === y) || treeContainers.some((c) => c.x === x && c.y === y) || barrels.some((br) => br.x === x && br.y === y) || spigots.some((sp) => sp.x === x && sp.y === y) || groundObstacles.some((o) => o.gx === x && o.gy === y);
     }
     function rectFree(x0, y0, x1, y1) {
         for (let x = x0; x <= x1; x++)
