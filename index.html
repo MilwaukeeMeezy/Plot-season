@@ -26,8 +26,6 @@
     };
     document.body.appendChild(rankScript);
 
-    // Guaranteed always-visible gardener-rank badge. This renderer lives in the page
-    // itself so it cannot be skipped by timing issues in the optional rank tracker.
     function plotSeasonRankSnapshot() {
       let saved = {};
       try {
@@ -61,6 +59,10 @@
     }
 
     function ensureGardenerRankBadge() {
+      // Remove the old floating rank badge so there is only one rank display.
+      const legacyBadge = document.getElementById('gardener-rank-badge');
+      if (legacyBadge) legacyBadge.remove();
+
       const navButtons = Array.from(document.querySelectorAll('button'));
       const gameVisible = navButtons.some((b) => (b.textContent || '').includes('Garden Journey')) &&
                           navButtons.some((b) => (b.textContent || '').includes('Yard'));
@@ -75,10 +77,21 @@
         badge.type = 'button';
         badge.title = 'Open Garden Journey';
         Object.assign(badge.style, {
-          position:'fixed', top:'82px', right:'18px', zIndex:'220', minWidth:'190px',
-          padding:'8px 11px', border:'2px solid #4A3728', borderRadius:'8px',
-          background:'#FFFDF6', color:'#3D2B1F', boxShadow:'2px 2px 0 #4A3728',
-          textAlign:'left', cursor:'pointer', fontFamily:'inherit'
+          position:'fixed',
+          top:'10px',
+          left:'50%',
+          transform:'translateX(-50%)',
+          zIndex:'220',
+          minWidth:'210px',
+          padding:'2px 14px 4px',
+          border:'0',
+          borderRadius:'0',
+          background:'transparent',
+          color:'#F3E6C9',
+          boxShadow:'none',
+          textAlign:'center',
+          cursor:'pointer',
+          fontFamily:'inherit'
         });
         badge.onclick = function () {
           const journey = Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').includes('Garden Journey'));
@@ -87,9 +100,9 @@
         document.body.appendChild(badge);
       }
       const snap = plotSeasonRankSnapshot();
-      badge.innerHTML = '<div style="font-size:9px;font-weight:900;letter-spacing:.7px;text-transform:uppercase;color:#6b5844">Gardener Rank</div>' +
-        '<div style="font-size:14px;font-weight:900;margin-top:1px">' + snap.rank.icon + ' ' + snap.rank.name + '</div>' +
-        '<div style="font-size:9px;color:#6b5844;margin-top:2px">' + snap.progress + '</div>';
+      badge.innerHTML = '<div style="font-size:8px;font-weight:900;letter-spacing:1px;text-transform:uppercase;color:#CDBB99">Gardener Rank</div>' +
+        '<div style="font-size:14px;font-weight:900;line-height:1.2;margin-top:1px;color:#F3E6C9">' + snap.rank.icon + ' ' + snap.rank.name + '</div>' +
+        '<div style="font-size:8px;color:#CDBB99;margin-top:1px">' + snap.progress + '</div>';
     }
 
     setInterval(ensureGardenerRankBadge, 700);
