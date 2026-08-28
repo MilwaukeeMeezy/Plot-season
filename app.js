@@ -229,7 +229,7 @@ const MELON_SALVAGE_DAYS = 2;
 function isViningPlant(plant) { return !!plant && VINE_PLANT_IDS.has(plant.id); }
 function isMelonPlant(plant) { return !!plant && MELON_IDS.has(plant.id); }
 function isMelonSalvageable(plant) {
-    return !!plant && isMelonPlant(plant) && plant.dead && plant.age >= plant.daysToMature &&
+    return !!plant && isMelonPlant(plant) && plant.dead && !plant.harvested && plant.age >= plant.daysToMature &&
         !plant.salvageExpired && Number(plant.salvageDaysLeft || 0) > 0;
 }
 const LEGUME_SOIL_BUILDERS = new Set(['bushbean', 'polebean', 'limabean', 'yardlongbean', 'cowpea', 'favabean', 'snowpea', 'fieldpea', 'crimsonclover', 'hairyvetch', 'lupine']);
@@ -2109,7 +2109,13 @@ function GardenGame() {
             const wateredEffectively = p.wateredToday || (weatherToday === 'rain' && !insideGreenhouse);
             const nextDaysUnwatered = wateredEffectively ? 0 : (p.daysUnwatered || 0) + 1;
             const melonDeepWaterGrace = isMelonPlant(p) && nextDaysUnwatered <= MELON_DRY_DAY_GRACE;
-            let health = Math.max(0, p.health - (wateredEffectively || melonDeepWaterGrace ? 0 : drop));
+            // Melons still want deep, regular watering, but their long 18-22 day crop cycle should not
+            // collapse after one missed watering window. After the two-day grace period, cap drought
+            // damage so a healthy vine has time to reach harvest; heat waves remain more punishing.
+            const melonWaterDrop = isMelonPlant(p)
+                ? Math.min(drop, weatherToday === 'heatwave' ? 14 : 9)
+                : drop;
+            let health = Math.max(0, p.health - (wateredEffectively || melonDeepWaterGrace ? 0 : melonWaterDrop));
             let pest = p.pest || null;
             const activeFireHere = (location === null || location === void 0 ? void 0 : location.kind) === 'ground' && activeBurn && activeBurn.ignited && cellsContain(activeBurn.fireCells || activeBurn.cells, location.x, location.y);
             const burnRecoveryHere = (location === null || location === void 0 ? void 0 : location.kind) === 'ground' && burnedAreas.some((a) => (a.daysRemaining || 0) > 0 && cellsContain(a.cells, location.x, location.y));
