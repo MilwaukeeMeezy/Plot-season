@@ -3513,16 +3513,18 @@ function GardenGame() {
         }
         if (typeId === 'cattlepanel') {
             const w = type.footprintW || 3, h = type.footprintH || 2;
-            if (!cattlePanelAreaClear(x, y, w, h)) {
-                addLog(`The ${type.name} needs a clear ${w}×${h} footprint. Beds and crops are allowed underneath, but buildings, ponds, pots, trees, barrels, and other trellises are not.`);
+            const placeX = Math.max(0, Math.min(GRID_COLS - w, x - Math.floor(w / 2)));
+            const placeY = Math.max(0, Math.min(GRID_ROWS - h, y - Math.floor(h / 2)));
+            if (!cattlePanelAreaClear(placeX, placeY, w, h)) {
+                addLog(`The ${type.name} needs a clear ${w}×${h} footprint. Click near the middle of the bed/ground area you want to cover. Beds and crops are allowed underneath, but buildings, ponds, pots, trees, barrels, and other trellises are not.`);
                 return;
             }
             trellisIdRef.current += 1;
             setInventory((inv) => ({ ...inv, trellises: { ...inv.trellises, [typeId]: Math.max(0, (inv.trellises?.[typeId] || 0) - 1) } }));
-            setTrellises((prev) => [...prev, { id: trellisIdRef.current, typeId, x, y, w, h }]);
+            setTrellises((prev) => [...prev, { id: trellisIdRef.current, typeId, x: placeX, y: placeY, w, h }]);
             if (owned <= 1)
                 setSelectedBuildMaterial(null);
-            addLog(`Placed ${type.name}. You can plant vining crops directly underneath the arch; they will climb up and over it.`);
+            addLog(`Placed ${type.name}. You can plant vining crops directly underneath the arch; they will climb up the sides and over the top.`);
             return;
         }
         if (cellOccupied(x, y)) {
@@ -3593,7 +3595,7 @@ function GardenGame() {
         return null;
     }
     function cellOccupied(x, y) {
-        return beds.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) || greenhouses.some((g) => x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h) || ponds.some((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) || trellises.some((t) => t.typeId !== 'cattlepanel' && t.x === x && t.y === y) || planterBuckets.some((c) => c.x === x && c.y === y) || treeContainers.some((c) => c.x === x && c.y === y) || barrels.some((br) => br.x === x && br.y === y) || spigots.some((sp) => sp.x === x && sp.y === y) || groundObstacles.some((o) => o.gx === x && o.gy === y);
+        return beds.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) || greenhouses.some((g) => x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h) || ponds.some((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) || trellises.some((t) => t.typeId === 'cattlepanel' ? cattlePanelCoversCell(t, x, y) : (t.x === x && t.y === y)) || planterBuckets.some((c) => c.x === x && c.y === y) || treeContainers.some((c) => c.x === x && c.y === y) || barrels.some((br) => br.x === x && br.y === y) || spigots.some((sp) => sp.x === x && sp.y === y) || groundObstacles.some((o) => o.gx === x && o.gy === y);
     }
     function rectFree(x0, y0, x1, y1) {
         for (let x = x0; x <= x1; x++)
@@ -5933,7 +5935,7 @@ function NurseryShopTab({ cash, inventory, zone, buySeedPacket, sellSeedPacket, 
                     [
                         ['ponds', '💧 Ponds & Fish'],
                         ['trellis', '🌿 Trellising'],
-                        ['protection', '🕸️ Tree & Bush Protection'],
+                        ['protection', '🕸️ Plant Protection'],
                         ['buckets', '🪣 Planter Buckets'],
                         ['paths', '🧱 Pathways'],
                         ['treecontainers', '🪴 Tree Containers'],
@@ -7736,7 +7738,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                                     const bedWeed = weeds.find((w) => w.kind === 'bed' && w.bedId === bed.id && w.x === sx && w.y === sy);
                                     return (React.createElement("div", { key: `${sx}-${sy}`, onClick: (e) => {
                                             e.stopPropagation();
-                                            if (mode === 'build' && (selectedBuildMaterial === 'pvc' || selectedBuildMaterial === 'protective-net')) {
+                                            if (mode === 'build' && (selectedBuildMaterial === 'pvc' || selectedBuildMaterial === 'protective-net' || selectedBuildMaterial === 'trellis:cattlepanel')) {
                                                 handleGridMouseDown(bed.x + sx, bed.y + sy);
                                                 return;
                                             }
@@ -7783,7 +7785,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                     selectedBuildMaterial === 'barrel' && 'Click any empty square to place a rain barrel. Click a placed barrel to pick it back up.',
                     selectedBuildMaterial === 'spigot' && 'Click any empty square to place a spigot. Click a placed spigot to pick it back up.',
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('pond:') && 'Click open yard space to place the pond footprint. After placement, click the pond to stock fish.',
-                    typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('trellis:') && (selectedBuildMaterial === 'trellis:cattlepanel' ? 'Click the upper-left square of a 3×2 area. The cattle-panel arch can sit over beds or open ground, and you can plant vines directly underneath it.' : 'Click an empty square beside a vining crop. Supported vines will climb the trellis and receive a growth/airflow benefit.'),
+                    typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('trellis:') && (selectedBuildMaterial === 'trellis:cattlepanel' ? 'Click near the CENTER of the bed or prepared-ground area you want covered. The 3×2 cattle-panel arch can sit over crops, and vines can be planted directly underneath it. Buy multiple arches to extend a tunnel.' : 'Click an empty square beside a vining crop. Supported vines will climb the trellis and receive a growth/airflow benefit.'),
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('treecontainer:') && 'Click an empty square to place a movable tree container. Click the pot afterward to plant a tropical tree and move it into a greenhouse for cold weather.',
                     selectedBuildMaterial === 'protective-net' && 'Click directly on any living plant, bush, or tree to cover it with insect netting. Remove or open netting during bloom for pollinators.',
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('bucket:') && 'Click open ground to place the planter bucket, then click the bucket to plant it.',
@@ -8008,18 +8010,18 @@ mode === 'burn' && (React.createElement("div", { style: styles.shopPanel },
                                 React.createElement("div", { style: { fontSize: 10, opacity: .7 } }, (((_c = inventory.ponds) === null || _c === void 0 ? void 0 : _c[p.id]) || 0), " owned · ", p.w, "'×", p.h, "' footprint"))); })),
                     buildCatalogTab === 'structures' && React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
                         React.createElement("div", { style: { ...styles.materialGroupLabel } }, "\uD83C\uDF3F Trellises"),
-                        React.createElement("div", { style: { fontSize: 9, color: '#6b5844', marginTop: -2, marginBottom: 4 } }, "Place one in an empty square directly beside a vining crop."),
+                        React.createElement("div", { style: { fontSize: 9, color: '#6b5844', marginTop: -2, marginBottom: 4 } }, "Wood and T-post trellises go beside vines. Cattle Panel Arches go OVER beds or prepared ground so vines can grow underneath and climb the arch."),
                         TRELLIS_TYPES.map((t) => { var _a, _b, _c; return React.createElement("button", { key: `build-${t.id}`, onClick: () => setSelectedBuildMaterial(`trellis:${t.id}`), disabled: (((_a = inventory.trellises) === null || _a === void 0 ? void 0 : _a[t.id]) || 0) < 1, style: { ...styles.seedRow, ...(selectedBuildMaterial === `trellis:${t.id}` ? styles.seedRowActive : {}), opacity: (((_b = inventory.trellises) === null || _b === void 0 ? void 0 : _b[t.id]) || 0) < 1 ? .4 : 1 } },
                             React.createElement("span", { style: { fontSize: 18 } }, t.icon),
                             React.createElement("span", { style: { flex: 1, textAlign: 'left', marginLeft: 8 } },
                                 React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, t.name),
                                 React.createElement("div", { style: { fontSize: 10, opacity: .7 } }, (((_c = inventory.trellises) === null || _c === void 0 ? void 0 : _c[t.id]) || 0), " owned"))); }),
-                        React.createElement("div", { style: { ...styles.materialGroupLabel, marginTop: 10 } }, "\uD83D\uDD78\uFE0F Tree & Bush Protection"),
+                        React.createElement("div", { style: { ...styles.materialGroupLabel, marginTop: 10 } }, "\uD83D\uDD78\uFE0F Plant Protection"),
                         React.createElement("button", { onClick: () => setSelectedBuildMaterial('protective-net'), disabled: (inventory.protectiveNets || 0) < 1, style: { ...styles.seedRow, ...(selectedBuildMaterial === 'protective-net' ? styles.seedRowActive : {}), opacity: (inventory.protectiveNets || 0) < 1 ? .4 : 1 } },
                             React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDD78\uFE0F"),
                             React.createElement("span", { style: { flex: 1, textAlign: 'left', marginLeft: 8 } },
-                                React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, "Tree & Bush Insect Net"),
-                                React.createElement("div", { style: { fontSize: 10, opacity: .7 } }, inventory.protectiveNets || 0, " owned · click directly on a fruit tree/bush"))),
+                                React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, "Plant Insect Net"),
+                                React.createElement("div", { style: { fontSize: 10, opacity: .7 } }, inventory.protectiveNets || 0, " owned · click directly on a living plant"))),
                         React.createElement("div", { style: { ...styles.materialGroupLabel, marginTop: 10 } }, "\uD83E\uDDF1 Pathways"),
                         PATH_TYPES.map((p) => { var _a, _b, _c; return React.createElement("button", { key: `build-${p.id}`, onClick: () => setSelectedBuildMaterial(`path:${p.id}`), disabled: (((_a = inventory.paths) === null || _a === void 0 ? void 0 : _a[p.id]) || 0) < 1, style: { ...styles.seedRow, ...(selectedBuildMaterial === `path:${p.id}` ? styles.seedRowActive : {}), opacity: (((_b = inventory.paths) === null || _b === void 0 ? void 0 : _b[p.id]) || 0) < 1 ? .4 : 1 } },
                             React.createElement("span", { style: { fontSize: 18 } }, p.icon),
