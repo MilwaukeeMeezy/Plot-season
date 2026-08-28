@@ -4646,6 +4646,10 @@ function GardenGame() {
                 return { ...p, harvestCount: nextCount, harvested: true, exhausted: true, seedsCollected: false };
             return { ...p, age: Math.max(0, p.daysToMature - (p.regrowDays || 4)), harvested: false, seedsCollected: false, harvestCount: nextCount };
         }
+        // A salvaged melon is a one-time harvest. Mark it consumed immediately so the
+        // salvage badge disappears and repeated clicks cannot duplicate basket items.
+        if (isMelonSalvageable(p))
+            return { ...p, harvested: true, salvageDaysLeft: 0, salvageExpired: true };
         return { ...p, harvested: true };
     }
     function harvestBedSquare(bedId, sx, sy) {
