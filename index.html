@@ -16,10 +16,15 @@
   </div>
   <script src="./startup.js"></script>
   <script>
-    // Always request the latest game code after a deployment instead of reusing a stale cached app.js.
-    const plotSeasonScript = document.createElement('script');
-    plotSeasonScript.src = './app.js?v=' + Date.now();
-    document.body.appendChild(plotSeasonScript);
+    // Load rank tracking before app.js so it can observe real gameplay state.
+    const rankScript = document.createElement('script');
+    rankScript.src = './gardener-ranks.js?v=' + Date.now();
+    rankScript.onload = function () {
+      const plotSeasonScript = document.createElement('script');
+      plotSeasonScript.src = './app.js?v=' + Date.now();
+      document.body.appendChild(plotSeasonScript);
+    };
+    document.body.appendChild(rankScript);
   </script>
 </body>
 </html>
