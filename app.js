@@ -122,6 +122,9 @@ const GREENHOUSE_TYPES = [
     { id: 'gh8x10', name: '8×10 Greenhouse', w: 8, h: 10, cost: 650, plantSlots: 24, decorSlots: 8, icon: '🏡', desc: 'Large growing house with space for serious year-round production.' },
     { id: 'gh6x12', name: '6×12 Greenhouse', w: 12, h: 6, cost: 590, plantSlots: 22, decorSlots: 8, icon: '🏡', desc: 'Long greenhouse that fits rows, benches, and climbing crops.' },
 ];
+const KRATKY_SYSTEM = { id: 'kratky', name: 'Kratky Hydroponics Kit', icon: '🫙', cost: 32, slots: 4, desc: 'A passive, pump-free hydroponic reservoir. As plants drink, the falling solution creates the air gap their upper roots need.' };
+const KRATKY_CROP_IDS = new Set(['lettuce','spinach','kale','bokchoy','basil','cilantro','parsley','arugula','chard','strawberry']);
+function kratkyCropSuitable(p) { return !!p && (KRATKY_CROP_IDS.has(p.id) || /lettuce|spinach|kale|bok|basil|cilantro|parsley|arugula|chard|strawber|herb/i.test(`${p.id || ''} ${p.name || ''}`)); }
 const GREENHOUSE_DECOR = [
     { id: 'pottingbench', name: 'Potting Bench', icon: '🪵', cost: 35, desc: 'A dedicated work surface for your greenhouse.' },
     { id: 'shelving', name: 'Plant Shelving', icon: '🗄️', cost: 28, desc: 'Vertical storage and seedling display space.' },
@@ -2262,7 +2265,28 @@ function GardenGame() {
         setActiveBeneficials((prev) => prev.map((ab) => ({ ...ab, daysLeft: ab.daysLeft - 1 })).filter((ab) => ab.daysLeft > 0));
         setGreenhouses((prev) => prev.map((g) => ({
             ...g,
-            plants: (g.plants || []).map((p) => ageFn(p, null, 6.5, { kind: 'greenhouse', greenhouseId: g.id }))
+            plants: (g.plants || []).map((p) => ageFn(p, null, 6.5, { kind: 'greenhouse', greenhouseId: g.id })),
+            hydroponics: (g.hydroponics || []).map((h) => {
+                if (h.type !== 'kratky')
+                    return h;
+                const activeCount = (h.plants || []).filter((p) => p && !p.dead && !p.harvested).length;
+                const nextReservoir = Math.max(0, (h.reservoir ?? 100) - activeCount * 3);
+                const nextNutrients = Math.max(0, (h.nutrients ?? 100) - activeCount * 1.5);
+                const airGap = 100 - nextReservoir;
+                return { ...h, reservoir: nextReservoir, nutrients: nextNutrients, plants: (h.plants || []).map((p) => {
+                    if (!p || p.dead || p.harvested)
+                        return p;
+                    let health = p.health ?? 100;
+                    if (nextReservoir <= 4)
+                        health = Math.max(0, health - 18);
+                    else if (airGap < 12 && p.age > 3)
+                        health = Math.max(0, health - 8);
+                    if (nextNutrients < 15)
+                        health = Math.max(0, health - 6);
+                    const growth = nextReservoir > 4 && nextNutrients > 10 ? 1.08 : .45;
+                    return { ...p, age: p.age + growth, health, dead: health <= 0 };
+                }) };
+            })
         })));
         setTreeContainers((prev) => prev.map((c) => c.plant ? { ...c, plant: ageFn(c.plant, null, 6.5, c.greenhouseId ? { kind: 'greenhouse', greenhouseId: c.greenhouseId } : { kind: 'treecontainer', x: c.x, y: c.y }) } : c));
         setPlanterBuckets((prev) => prev.map((c) => c.plant ? { ...c, plant: ageFn(c.plant, null, 6.5, { kind: 'bucket', bucketId: c.id }) } : c));
@@ -3168,7 +3192,7 @@ function GardenGame() {
         }
         greenhouseIdRef.current += 1;
         setInventory((inv) => { var _a; return ({ ...inv, greenhouses: { ...inv.greenhouses, [typeId]: (((_a = inv.greenhouses) === null || _a === void 0 ? void 0 : _a[typeId]) || 0) - 1 } }); });
-        setGreenhouses((prev) => [...prev, { id: greenhouseIdRef.current, typeId, x, y, w: type.w, h: type.h, plants: Array(type.plantSlots).fill(null), decor: [], controls: { heaterOn: false, fanOn: false, lightsOn: false } }]);
+        setGreenhouses((prev) => [...prev, { id: greenhouseIdRef.current, typeId, x, y, w: type.w, h: type.h, plants: Array(type.plantSlots).fill(null), decor: [], controls: { heaterOn: false, fanOn: false, lightsOn: false }, hydroponics: [] }]);
         setSelectedBuildMaterial(null);
         addLog(`Placed ${type.name}. Click the greenhouse to enter, plant, water, and decorate it.`);
     }
@@ -3182,6 +3206,10 @@ function GardenGame() {
         }
         if (treeContainers.some((c) => c.greenhouseId === id)) {
             addLog('Move the overwintering tree containers back outside before picking up this greenhouse.');
+            return;
+        }
+        if ((g.hydroponics || []).some((h) => (h.plants || []).some(Boolean))) {
+            addLog('Clear the greenhouse hydroponic plants before picking up the structure.');
             return;
         }
         setGreenhouses((prev) => prev.filter((x) => x.id !== id));
@@ -3273,6 +3301,77 @@ function GardenGame() {
             clearGreenhousePlant(greenhouseId, slotIdx);
             addLog(`Harvested ${p.name} from the greenhouse into your basket.`);
         }
+    }
+    function addKratkySystem(greenhouseId) {
+        const g = greenhouses.find((x) => x.id === greenhouseId);
+        if (!g)
+            return;
+        if (cash < KRATKY_SYSTEM.cost) {
+            addLog(`Not enough cash for ${KRATKY_SYSTEM.name}.`);
+            return;
+        }
+        const type = GREENHOUSE_TYPES.find((t) => t.id === g.typeId) || GREENHOUSE_TYPES[0];
+        const maxSystems = Math.max(1, Math.floor(type.plantSlots / 6));
+        if ((g.hydroponics || []).length >= maxSystems) {
+            addLog(`${type.name} has room for ${maxSystems} Kratky setup${maxSystems === 1 ? '' : 's'}.`);
+            return;
+        }
+        setCash((v) => v - KRATKY_SYSTEM.cost);
+        setGreenhouses((prev) => prev.map((x) => x.id === greenhouseId ? { ...x, hydroponics: [...(x.hydroponics || []), { id: `kratky-${Date.now()}-${(x.hydroponics || []).length}`, type: 'kratky', reservoir: 100, nutrients: 100, ph: 6.0, plants: Array(KRATKY_SYSTEM.slots).fill(null) }] } : x));
+        addLog('🫙 Added a Kratky reservoir. No pump is needed — let the water level fall naturally so an air gap forms above the nutrient solution.');
+    }
+    function plantKratkySlot(greenhouseId, systemId, slotIdx) {
+        const g = greenhouses.find((x) => x.id === greenhouseId);
+        const h = (g?.hydroponics || []).find((x) => x.id === systemId);
+        if (!g || !h || !selectedPlant) {
+            addLog('Choose a crop first.');
+            return;
+        }
+        if (h.plants?.[slotIdx])
+            return;
+        if (!kratkyCropSuitable(selectedPlant)) {
+            addLog(`${selectedPlant.name} is not a beginner-friendly Kratky crop. Try leafy greens, herbs, bok choy, or strawberries.`);
+            return;
+        }
+        if (!canUseSource(selectedPlant, selectedSource)) {
+            addLog(`You don't have any ${selectedSource === 'seed' ? 'seeds' : 'live plants'} for ${selectedPlant.name}.`);
+            return;
+        }
+        const plant = { ...selectedPlant, hydroponic: 'kratky', greenhouse: true, daysToMature: Math.max(1, Math.round(daysToMatureFrom(selectedPlant, selectedSource) * .9)), health: 100, age: 0, dead: false, harvested: false };
+        if (selectedSource === 'seed')
+            removeSeed(selectedPlant.id, 1);
+        else
+            removeLivePlant(selectedPlant.id, 1);
+        setGreenhouses((prev) => prev.map((x) => x.id !== greenhouseId ? x : { ...x, hydroponics: (x.hydroponics || []).map((sys) => sys.id !== systemId ? sys : { ...sys, plants: sys.plants.map((p, i) => i === slotIdx ? plant : p) }) }));
+        addLog(`🌱 Started ${selectedPlant.name} in the Kratky system. Watch the reservoir fall — do not keep topping it back to 100%.`);
+    }
+    function refillKratky(greenhouseId, systemId) {
+        setGreenhouses((prev) => prev.map((x) => x.id !== greenhouseId ? x : { ...x, hydroponics: (x.hydroponics || []).map((h) => h.id !== systemId ? h : { ...h, reservoir: Math.max(h.reservoir || 0, 70), nutrients: 100 }) }));
+        addLog('💧 Kratky nutrients refreshed to about 70%. The remaining air gap protects established air roots from being submerged.');
+    }
+    function clearKratkyPlant(greenhouseId, systemId, slotIdx) {
+        setGreenhouses((prev) => prev.map((x) => x.id !== greenhouseId ? x : { ...x, hydroponics: (x.hydroponics || []).map((h) => h.id !== systemId ? h : { ...h, plants: h.plants.map((p, i) => i === slotIdx ? null : p) }) }));
+    }
+    function harvestKratkyPlant(greenhouseId, systemId, slotIdx) {
+        const g = greenhouses.find((x) => x.id === greenhouseId);
+        const h = (g?.hydroponics || []).find((x) => x.id === systemId);
+        const p = h?.plants?.[slotIdx];
+        if (!p || p.dead)
+            return;
+        const tier = harvestQualityTier(p.age, p.daysToMature);
+        if (!tier) {
+            addLog(`${p.name} isn't ready to harvest yet.`);
+            return;
+        }
+        if (!basketSizeId || basketItems.length >= basketCapacity()) {
+            addLog(!basketSizeId ? 'Buy a harvest basket first.' : 'Your harvest basket is full.');
+            return;
+        }
+        const mult = tier === 'full' ? 1 : tier === 'half' ? .5 : 0;
+        basketItemIdRef.current += 1;
+        setBasketItems((prev) => [...prev, { id: basketItemIdRef.current, plantId: p.id, name: p.name, emoji: p.emoji, value: Math.max(0, Math.round((p.sellValue || 0) * mult)), daysIn: 0, sellable: tier !== 'weak', health: p.health ?? 100, qualityTier: tier }]);
+        clearKratkyPlant(greenhouseId, systemId, slotIdx);
+        addLog(`🧺 Harvested hydroponic ${p.name} from the Kratky reservoir.`);
     }
     function addGreenhouseDecor(greenhouseId, decorId) {
         var _a;
@@ -5274,7 +5373,7 @@ function GardenGame() {
         !pestEncounter && activeTab === 'yard' && (React.createElement(YardTab, { zone: zone, calendarMonth: gameCalendarDate(startMonth, startDay, seasonIdx, day).month, beds: beds, groundPlants: groundPlants, mode: mode, setMode: setMode, dragStart: dragStart, dragCurrent: dragCurrent, handleGridMouseDown: handleGridMouseDown, handleGridMouseEnter: handleGridMouseEnter, setDragStart: setDragStart, setDragCurrent: setDragCurrent, clickBedSquare: clickBedSquare, clickGroundSquare: clickGroundSquare, deleteBed: deleteBed, getBedSquare: getBedSquare, getGroundSquare: getGroundSquare, selectedPlant: selectedPlant, selectedPlantId: selectedPlantId, setSelectedPlantId: setSelectedPlantId, selectedSource: selectedSource, setSelectedSource: setSelectedSource, inventory: inventory, pendingTransplant: pendingTransplant, waterBed: waterBed, waterAllGround: waterAllGround, waterSquare: waterSquare, selectedWaterTool: selectedWaterTool, setSelectedWaterTool: setSelectedWaterTool, tryUseBarrelWater: tryUseBarrelWater, selectedBuildMaterial: selectedBuildMaterial, setSelectedBuildMaterial: setSelectedBuildMaterial, buildCatalogTab: buildCatalogTab, setBuildCatalogTab: setBuildCatalogTab, activeBurn: activeBurn, wetControlledBurnRing: wetControlledBurnRing, igniteControlledBurn: igniteControlledBurn, extinguishControlledBurn: extinguishControlledBurn, cancelControlledBurnPreview: cancelControlledBurnPreview, burnedAreas: burnedAreas, collectBurnDebris: collectBurnDebris, barrels: barrels, deleteBarrel: deleteBarrel, toggleBarrel: toggleBarrel, greenhouses: greenhouses, deleteGreenhouse: deleteGreenhouse, setGreenhouseOpenId: setGreenhouseOpenId, ponds: ponds, deletePond: deletePond, setPondOpenId: setPondOpenId, trellises: trellises, deleteTrellis: deleteTrellis, protectiveNets: protectiveNets, deleteProtectiveNet: deleteProtectiveNet, paths: paths, deletePath: deletePath, planterBuckets: planterBuckets, deletePlanterBucket: deletePlanterBucket, setPlanterBucketOpenId: setPlanterBucketOpenId, treeContainers: treeContainers, deleteTreeContainer: deleteTreeContainer, setTreeContainerOpenId: setTreeContainerOpenId, spigots: spigots, deleteSpigot: deleteSpigot, toggleSpigot: toggleSpigot, pipes: pipes, deletePipe: deletePipe, pipeWaypoints: pipeWaypoints, finishPipeRun: finishPipeRun, cancelPipeRun: cancelPipeRun, pvcIsConnected: pvcIsConnected, pvcConnectionStatus: pvcConnectionStatus, pvcNetworkHasOnSource: pvcNetworkHasOnSource, groundSoilTiles: groundSoilTiles, selectedFillSoil: selectedFillSoil, setSelectedFillSoil: setSelectedFillSoil, selectedFillBoosted: selectedFillBoosted, setSelectedFillBoosted: setSelectedFillBoosted, groundMulchTiles: groundMulchTiles, selectedFillMulch: selectedFillMulch, setSelectedFillMulch: setSelectedFillMulch, groundTilledTiles: groundTilledTiles, weeds: weeds, removeWeed: removeWeed, selectedFertilizer: selectedFertilizer, setSelectedFertilizer: setSelectedFertilizer, applyFertilizer: applyFertilizer, applyPHAmendment: applyPHAmendment, compostBatches: compostBatches, startCompostBatch: startCompostBatch, collectCompost: collectCompost, groundObstacles: groundObstacles, clearRock: clearRock, controlledBurnAt: controlledBurnAt, todayWeather: todayWeather, addLog: addLog, basketSizeId: basketSizeId, basketItems: basketItems, basketCapacity: basketCapacity, basketOpen: basketOpen, setBasketOpen: setBasketOpen, sellBasketItem: sellBasketItem, keepBasketItem: keepBasketItem, saveBasketSeeds: saveBasketSeeds, sellAllBasket: sellAllBasket, keepAllBasket: keepAllBasket, saveAllBasketSeeds: saveAllBasketSeeds, basketSeedYield: basketSeedYield, basketItemCurrentValue: basketItemCurrentValue, basketItemHealth: basketItemHealth, basketItemFreshness: basketItemFreshness, basketItemConditionLabel: basketItemConditionLabel, collectSeedsFromBedSquare: collectSeedsFromBedSquare, collectSeedsFromGroundSquare: collectSeedsFromGroundSquare, maintainBedVine: maintainBedVine, maintainGroundVine: maintainGroundVine, activeBeneficials: activeBeneficials, releaseBeneficialBug: releaseBeneficialBug, onInspectPests: openPestEncounter, avatar: avatar, equippedClothes: equippedClothes, showAvatarInYard: showAvatarInYard, enabledMethods: enabledMethods, setQuizOpen: setQuizOpen, log: log, score: score })),
         !pestEncounter && greenhouseOpenId != null && (() => {
             const openGreenhouse = greenhouses.find((g) => g.id === greenhouseOpenId);
-            return openGreenhouse ? (React.createElement(GreenhouseModal, { greenhouse: openGreenhouse, inventory: inventory, treeContainers: treeContainers, selectedPlant: selectedPlant, selectedPlantId: selectedPlantId, setSelectedPlantId: setSelectedPlantId, selectedSource: selectedSource, setSelectedSource: setSelectedSource, onPlant: plantGreenhouseSlot, onWater: waterGreenhouse, onHarvest: harvestGreenhouseSlot, onClear: clearGreenhousePlant, onAddDecor: addGreenhouseDecor, onRemoveDecor: removeGreenhouseDecor, onToggleControl: toggleGreenhouseControl, zone: zone, season: season, todayWeather: todayWeather, onMoveTreeOut: moveTreeContainerOutside, onOpenTree: setTreeContainerOpenId, onClose: () => setGreenhouseOpenId(null) })) : null;
+            return openGreenhouse ? (React.createElement(GreenhouseModal, { greenhouse: openGreenhouse, inventory: inventory, treeContainers: treeContainers, selectedPlant: selectedPlant, selectedPlantId: selectedPlantId, setSelectedPlantId: setSelectedPlantId, selectedSource: selectedSource, setSelectedSource: setSelectedSource, onPlant: plantGreenhouseSlot, onWater: waterGreenhouse, onHarvest: harvestGreenhouseSlot, onClear: clearGreenhousePlant, onAddDecor: addGreenhouseDecor, onRemoveDecor: removeGreenhouseDecor, onToggleControl: toggleGreenhouseControl, onAddKratky: addKratkySystem, onPlantKratky: plantKratkySlot, onRefillKratky: refillKratky, onHarvestKratky: harvestKratkyPlant, onClearKratky: clearKratkyPlant, zone: zone, season: season, todayWeather: todayWeather, onMoveTreeOut: moveTreeContainerOutside, onOpenTree: setTreeContainerOpenId, onClose: () => setGreenhouseOpenId(null) })) : null;
         })(),
         !pestEncounter && treeContainerOpenId != null && (() => {
             const openContainer = treeContainers.find((c) => c.id === treeContainerOpenId);
@@ -6358,11 +6457,12 @@ function AvatarPortrait({ avatar, size = 200, equippedClothes = {} }) {
             React.createElement("div", { style: { position: 'absolute', left: '16%', top: '43%', width: '10%', height: '4%', background: '#5C7A4F', borderRadius: 10, opacity: 0.95, pointerEvents: 'none' } }),
             React.createElement("div", { style: { position: 'absolute', right: '14%', top: '62%', width: '10%', height: '4%', background: '#5C7A4F', borderRadius: 10, opacity: 0.95, pointerEvents: 'none' } })))));
 }
-function GreenhouseModal({ greenhouse, inventory, treeContainers = [], selectedPlant, selectedPlantId, setSelectedPlantId, selectedSource, setSelectedSource, onPlant, onWater, onHarvest, onClear, onAddDecor, onRemoveDecor, onToggleControl, zone, season, todayWeather, onMoveTreeOut, onOpenTree, onClose }) {
+function GreenhouseModal({ greenhouse, inventory, treeContainers = [], selectedPlant, selectedPlantId, setSelectedPlantId, selectedSource, setSelectedSource, onPlant, onWater, onHarvest, onClear, onAddDecor, onRemoveDecor, onToggleControl, onAddKratky, onPlantKratky, onRefillKratky, onHarvestKratky, onClearKratky, zone, season, todayWeather, onMoveTreeOut, onOpenTree, onClose }) {
     var _a, _b;
     const type = GREENHOUSE_TYPES.find((g) => g.id === greenhouse.typeId) || GREENHOUSE_TYPES[0];
     const plants = greenhouse.plants || [];
     const decor = greenhouse.decor || [];
+    const hydroponics = greenhouse.hydroponics || [];
     const controls = { heaterOn: false, fanOn: false, lightsOn: false, ...(greenhouse.controls || {}) };
     const climateBand = greenhouseTemperatureBand(greenhouse, season, todayWeather);
     const tenderPlants = PLANTS.filter((p) => p.frostTender || p.minTemp === 'warm');
@@ -6421,6 +6521,31 @@ function GreenhouseModal({ greenhouse, inventory, treeContainers = [], selectedP
                             p.dead && React.createElement("button", { style: { ...styles.sellBtn, padding: '4px 6px', fontSize: 9, marginTop: 4 }, onClick: () => onClear(greenhouse.id, i) }, "Clear"),
                             React.createElement("div", { style: { height: 5, background: '#D5CCB8', borderRadius: 4, overflow: 'hidden', marginTop: 5 } },
                                 React.createElement("div", { style: { height: '100%', width: `${Math.max(0, p.health)}%`, background: p.health > 60 ? '#5C7A4F' : p.health > 30 ? '#C16B3D' : '#A33' } }))))));
+                    }))),
+                React.createElement("div", { style: { gridColumn: '1 / -1', marginTop: 4, padding: 12, background: '#E7F2F1', border: '1.5px solid #7FA7A2', borderRadius: 8 } },
+                    React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontWeight: 900, fontSize: 15, color: '#28483B' } }, "🫙 Kratky Hydroponics"),
+                            React.createElement("div", { style: { fontSize: 10, color: '#526B67', maxWidth: 650 } }, "Passive hydroponics: no pump or electricity. The nutrient level should fall as plants drink, creating an air gap for upper roots. Best for leafy greens, herbs, bok choy, and strawberries.")),
+                        React.createElement("button", { style: styles.buyBtn, onClick: () => onAddKratky(greenhouse.id) }, "Add Kratky Kit — $", KRATKY_SYSTEM.cost)),
+                    hydroponics.length === 0 ? React.createElement("div", { style: { fontSize: 11, color: '#6b5844', fontStyle: 'italic', marginTop: 9 } }, "No hydroponic systems installed yet.") :
+                    React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 9, marginTop: 10 } }, hydroponics.map((h, hi) => {
+                        const reservoir = Math.round(h.reservoir ?? 100);
+                        const airGap = 100 - reservoir;
+                        return React.createElement("div", { key: h.id, style: { background: '#fff', border: '1.5px solid #8FB4B0', borderRadius: 9, padding: 10 } },
+                            React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 12 } }, React.createElement("span", null, "🫙 Kratky Reservoir ", hi + 1), React.createElement("span", null, reservoir, "% solution")),
+                            React.createElement("div", { style: { height: 52, border: '2px solid #708C88', borderRadius: '5px 5px 10px 10px', position: 'relative', overflow: 'hidden', background: '#F6FBFA', margin: '7px 0' } },
+                                React.createElement("div", { style: { position: 'absolute', left: 0, right: 0, bottom: 0, height: reservoir + '%', background: 'rgba(91,167,173,.55)' } }),
+                                React.createElement("div", { style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 } }, airGap, "% air gap · nutrients ", Math.round(h.nutrients ?? 100), "%")),
+                            React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5 } }, (h.plants || []).map((p, i) => React.createElement("div", { key: i, style: { minHeight: 72, border: '1px solid #A7BEB9', borderRadius: 6, padding: 4, textAlign: 'center', background: '#F4F8F5' } },
+                                !p ? React.createElement("button", { style: { width: '100%', height: 60, border: '1px dashed #78928D', background: 'transparent', cursor: 'pointer', fontSize: 9 }, onClick: () => onPlantKratky(greenhouse.id, h.id, i) }, "+ Net cup") :
+                                React.createElement(React.Fragment, null,
+                                    React.createElement("div", { style: { fontSize: 21 } }, p.dead ? '💀' : p.emoji),
+                                    React.createElement("div", { style: { fontSize: 8, fontWeight: 800 } }, p.name),
+                                    React.createElement("div", { style: { fontSize: 7 } }, "Day ", Math.floor(p.age), "/", p.daysToMature),
+                                    p.age >= p.daysToMature && !p.dead && React.createElement("button", { style: { ...styles.buyBtn, padding: '2px 3px', fontSize: 7 }, onClick: () => onHarvestKratky(greenhouse.id, h.id, i) }, "Harvest"),
+                                    p.dead && React.createElement("button", { style: { ...styles.sellBtn, padding: '2px 3px', fontSize: 7 }, onClick: () => onClearKratky(greenhouse.id, h.id, i) }, "Clear"))))),
+                            React.createElement("button", { style: { ...styles.modeBtn, marginTop: 7, fontSize: 9 }, onClick: () => onRefillKratky(greenhouse.id, h.id), disabled: reservoir > 45 }, reservoir > 45 ? "Air gap developing — don't top off" : "Refresh nutrients to ~70%"));
                     }))),
                 React.createElement("div", { style: { gridColumn: '1 / -1', marginTop: 4, padding: 12, background: '#E9F0E4', border: '1.5px solid #9CB18B', borderRadius: 8 } },
                     React.createElement("div", { style: { fontWeight: 900, fontSize: 15, color: '#28483B' } }, "\uD83E\uDEB4 Overwintering Tree Containers"),
