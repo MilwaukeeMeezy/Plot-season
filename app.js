@@ -3099,7 +3099,15 @@ function GardenGame() {
     else
         removeLivePlant(p.id, 1); setPlanterBuckets((prev) => prev.map((x) => x.id === id ? { ...x, plant: { ...p, health: 100, age: 0, wateredToday: true, dead: false, harvested: false, containerGrown: true } } : x)); }
     function waterPlanterBucket(id) { setPlanterBuckets((prev) => prev.map((x) => x.id === id && x.plant ? { ...x, plant: { ...x.plant, wateredToday: true, daysUnwatered: 0 } } : x)); }
-    function clearPlanterBucket(id) { setPlanterBuckets((prev) => prev.map((x) => x.id === id ? { ...x, plant: null } : x)); }
+    function clearPlanterBucket(id) {
+        const bucket = planterBuckets.find((x) => x.id === id);
+        const plant = bucket?.plant;
+        if (plant?.dead) {
+            setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
+            addLog(`Cleared dead ${plant.name} from the planter — added to dead plant matter for compost.`);
+        }
+        setPlanterBuckets((prev) => prev.map((x) => x.id === id ? { ...x, plant: null } : x));
+    }
     function harvestPlanterBucket(id) { const c = planterBuckets.find((x) => x.id === id), p = c === null || c === void 0 ? void 0 : c.plant; if (!p || p.dead)
         return; const cal = gameCalendarDate(startMonth, startDay, seasonIdx, day); if (p.harvestMonths && !monthInWindow(cal.month, p.harvestMonths)) {
         addLog(`${p.name} is mature, but its normal harvest window is ${seasonalFruitSummary(p).replace('🌸 Bloom: ', '').replace(' · 🧺 Harvest: ', ' / harvest ')}.`);
@@ -3189,6 +3197,12 @@ function GardenGame() {
         addLog('Watered the container tree.');
     }
     function clearTreeContainerPlant(containerId) {
+        const container = treeContainers.find((x) => x.id === containerId);
+        const plant = container?.plant;
+        if (plant?.dead) {
+            setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
+            addLog(`Cleared dead ${plant.name} from the tree container — added to dead plant matter for compost.`);
+        }
         setTreeContainers((prev) => prev.map((x) => x.id === containerId ? { ...x, plant: null } : x));
     }
     function moveTreeContainerIntoGreenhouse(containerId, greenhouseId) {
@@ -3331,6 +3345,12 @@ function GardenGame() {
         }));
     }
     function clearGreenhousePlant(greenhouseId, slotIdx) {
+        const greenhouse = greenhouses.find((g) => g.id === greenhouseId);
+        const plant = greenhouse?.plants?.[slotIdx];
+        if (plant?.dead) {
+            setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
+            addLog(`Cleared dead ${plant.name} from the greenhouse — added to dead plant matter for compost.`);
+        }
         setGreenhouses((prev) => prev.map((g) => g.id === greenhouseId ? { ...g, plants: g.plants.map((p, i) => i === slotIdx ? null : p) } : g));
     }
     function harvestGreenhouseSlot(greenhouseId, slotIdx) {
@@ -3424,6 +3444,13 @@ function GardenGame() {
         addLog('💧 Kratky nutrients refreshed to about 70%. The remaining air gap protects established air roots from being submerged.');
     }
     function clearKratkyPlant(greenhouseId, systemId, slotIdx) {
+        const greenhouse = greenhouses.find((x) => x.id === greenhouseId);
+        const system = (greenhouse?.hydroponics || []).find((h) => h.id === systemId);
+        const plant = system?.plants?.[slotIdx];
+        if (plant?.dead) {
+            setInventory((inv) => ({ ...inv, deadMatter: (inv.deadMatter || 0) + 1 }));
+            addLog(`Cleared dead ${plant.name} from the Kratky system — added to dead plant matter for compost.`);
+        }
         setGreenhouses((prev) => prev.map((x) => x.id !== greenhouseId ? x : { ...x, hydroponics: (x.hydroponics || []).map((h) => h.id !== systemId ? h : { ...h, plants: h.plants.map((p, i) => i === slotIdx ? null : p) }) }));
     }
     function harvestKratkyPlant(greenhouseId, systemId, slotIdx) {
@@ -7426,7 +7453,7 @@ function StartIndoorTab({ trays, inventory, zone, selectedPlant, selectedPlantId
                     React.createElement("div", { style: styles.panelTitle }, "Start / Feed Compost"),
                     React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 } },
                         React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between' } },
-                            React.createElement("span", null, "\uD83C\uDF43 Compost greens"),
+                            React.createElement("span", null, "🌿 Dead plant matter + weeds"),
                             React.createElement("span", { style: { fontWeight: 700, color: inventory.deadMatter >= COMPOST_RECIPE.deadMatter ? '#5C7A4F' : '#A33' } },
                                 inventory.deadMatter,
                                 " available")),
@@ -7624,7 +7651,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                             React.createElement("div", { style: styles.panelTitle }, "Start / Feed Compost"),
                             React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 } },
                                 React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between' } },
-                                    React.createElement("span", null, "\uD83C\uDF43 Compost greens"),
+                                    React.createElement("span", null, "🌿 Dead plant matter + weeds"),
                                     React.createElement("span", { style: { fontWeight: 700, color: inventory.deadMatter >= COMPOST_RECIPE.deadMatter ? '#5C7A4F' : '#A33' } },
                                         inventory.deadMatter,
                                         " available")),
