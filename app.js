@@ -8745,5 +8745,28 @@ const styles = {
     quizOption: { display: 'block', width: '100%', textAlign: 'left', background: '#EDE6D6', border: '1px solid #C9B98F', borderRadius: 3, padding: '8px 10px', marginBottom: 6, cursor: 'pointer', color: '#3D2B1F', fontFamily: sans },
     modalClose: { marginTop: 8, background: 'transparent', border: 'none', color: '#6b5844', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' },
 };
+class PlotSeasonErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { error: null, info: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { error };
+    }
+    componentDidCatch(error, info) {
+        this.setState({ info });
+        console.error('Plot & Season render error:', error, info);
+    }
+    render() {
+        if (this.state.error) {
+            const message = this.state.error && (this.state.error.stack || this.state.error.message || String(this.state.error));
+            return React.createElement("div", { style: { margin: 28, padding: 22, border: '3px solid #B55252', background: '#FFF4F2', color: '#6F1D1D', fontFamily: 'Arial, sans-serif', whiteSpace: 'pre-wrap' } },
+                React.createElement("div", { style: { fontWeight: 900, fontSize: 22, marginBottom: 10 } }, "Plot & Season hit a render error"),
+                React.createElement("div", { style: { fontSize: 13 } }, message),
+                this.state.info && this.state.info.componentStack ? React.createElement("div", { style: { marginTop: 10, fontSize: 11, opacity: .75 } }, this.state.info.componentStack) : null);
+        }
+        return this.props.children;
+    }
+}
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(React.createElement(GardenGame));
+root.render(React.createElement(PlotSeasonErrorBoundary, null, React.createElement(GardenGame)));
