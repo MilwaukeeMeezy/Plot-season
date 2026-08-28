@@ -16,14 +16,18 @@
   </div>
   <script src="./startup.js"></script>
   <script>
-    // Load rank tracking before app.js so it can observe real gameplay state.
-    // gardener-ranks.js is the single owner of the rank display and its placement.
+    // Load gameplay observers before app.js so they can observe real gameplay state.
     const rankScript = document.createElement('script');
     rankScript.src = './gardener-ranks.js?v=' + Date.now();
     rankScript.onload = function () {
-      const plotSeasonScript = document.createElement('script');
-      plotSeasonScript.src = './app.js?v=' + Date.now();
-      document.body.appendChild(plotSeasonScript);
+      const celebrationScript = document.createElement('script');
+      celebrationScript.src = './goal-celebrations.js?v=' + Date.now();
+      celebrationScript.onload = function () {
+        const plotSeasonScript = document.createElement('script');
+        plotSeasonScript.src = './app.js?v=' + Date.now();
+        document.body.appendChild(plotSeasonScript);
+      };
+      document.body.appendChild(celebrationScript);
     };
     document.body.appendChild(rankScript);
   </script>
