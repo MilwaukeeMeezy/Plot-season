@@ -1223,6 +1223,31 @@ const FIRST_TIME_GUIDES = {
             'Most pulled weeds become compost greens. Bad weeds such as pokeweed are disposed of instead.'
         ]
     },
+    'learn-meet-yard': {
+        icon: '👀',
+        title: 'Meet Your Garden',
+        intro: 'Before you build, look at the whole yard. Good garden design starts by deciding what should be permanent, where the sun travels, and how you will move through the space.',
+        steps: [
+            'Plan permanent features first. Existing trees stay where they are, and long-term additions such as fruit trees, greenhouses, ponds, major paths, trellises, water lines, and large beds are easiest to place before the yard gets crowded.',
+            'In the Northern Hemisphere, south-facing areas usually receive the most sunlight. They are often the best starting places for sun-loving vegetables and fruit, while north-facing areas and spaces behind buildings, fences, or trees may stay shaded longer.',
+            'Do not judge sun by one moment of the day. Watch morning, midday, and afternoon light. Use Chasing the Sun when you want to see how shadows move before committing an important bed or perennial crop.',
+            'Think about mature size. A small tree or vine today can shade nearby crops later. Keep tall plants and structures from unnecessarily blocking the sunniest growing areas.',
+            'Leave room to work. Paths should let you reach beds, water plants, harvest, move a wheelbarrow, and maintain permanent features without stepping on growing soil.',
+            'Put frequently used features where they are practical. Compost should be reachable, water should not require an awkward route, and beds that need frequent care are easier to manage when they are close to your normal path through the yard.'
+        ]
+    },
+    'learn-plant-ready': {
+        icon: '🌱',
+        title: 'Plant Something',
+        intro: 'You have selected a crop and are ready to place it. Planting is where spacing, soil, sunlight, and timing come together.',
+        steps: [
+            'Check the location before clicking. Match the crop to the amount of sun this part of the yard receives and remember that nearby trees, structures, and taller plants can create shade.',
+            'Give the plant enough space for its mature size. Crowded plants compete for light, water, nutrients, and airflow, which can increase stress and disease problems.',
+            'Use the right planting surface. Raised beds need soil before planting; open ground needs to be prepared with an appropriate tool before direct sowing. Containers and other growing systems have their own space limits.',
+            'Planting time matters. Frost-tender crops can be damaged if they go outside too early, while cool-season crops may struggle when planted too late into hot weather.',
+            'After planting, pay attention to the new crop instead of following one watering rule for everything. Its Garden Journal page will begin filling in as you water, grow, harvest, save seed, and encounter problems.'
+        ]
+    },
     'pest-game': {
         icon: '🔎',
         title: 'Pest Patrol',
@@ -5600,15 +5625,15 @@ function GardenGame() {
     const beginnerLearningPath = [
         {
             id: 'observe', icon: '👀', title: 'Meet Your Garden', lesson: 'Observe before you act.',
-            why: 'Sun, season, space, and soil determine what will thrive.',
-            done: Object.keys(discovered).some((k) => k.startsWith('seed-') || k.startsWith('plant-') || k.startsWith('planted-')),
-            action: 'Choose a crop and learn where it belongs.'
+            why: 'Your first Yard visit explains permanent features, south-facing sun, moving shade, mature plant size, access paths, and practical placement.',
+            done: !!seenGuides['learn-meet-yard'],
+            action: 'Enter the Yard and review the site before building or planting.'
         },
         {
             id: 'plant', icon: '🌱', title: 'Plant Something', lesson: 'Give roots the right start.',
-            why: 'Planting teaches spacing, soil, and timing.',
+            why: 'Planting teaches spacing, soil, sunlight, and timing. The lesson appears when you enter Plant mode and select a crop.',
             done: Object.keys(discovered).some((k) => k.startsWith('planted-')),
-            action: 'Plant your first crop in a bed, ground plot, or container.'
+            action: 'Select Plant, choose a crop, and the game will coach you before placement.'
         },
         {
             id: 'water', icon: '💧', title: 'Water by Hand', lesson: 'Plants need observation, not automatic habits.',
@@ -5760,7 +5785,8 @@ function GardenGame() {
                 React.createElement("span", { style: { fontSize: 16 } }, t.icon),
                 React.createElement("span", null, t.label)))),
             isPlanning && (React.createElement("button", { style: styles.startSeasonBtn, onClick: () => setIsPlanning(false) }, "Start Growing Season \u2192"))),
-        !pestEncounter && React.createElement(FirstTimeGuide, { guideKey: `tab-${activeTab}`, seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }),
+        !pestEncounter && React.createElement(FirstTimeGuide, { guideKey: activeTab === 'yard' ? 'learn-meet-yard' : `tab-${activeTab}`, seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }),
+        !pestEncounter && activeTab === 'yard' && mode === 'plant' && selectedPlant && React.createElement(FirstTimeGuide, { guideKey: 'learn-plant-ready', seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }),
         pestEncounter && React.createElement(FirstTimeGuide, { guideKey: "pest-game", seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }),
         pendingTransplant && (React.createElement("div", { style: styles.transplantBanner },
             "Transplanting ",
