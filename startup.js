@@ -1,0 +1,1 @@
+window.addEventListener('error',function(e){var b=document.getElementById('startup-error'),t=document.getElementById('startup-error-text');if(b&&t){b.style.display='block';t.textContent=e.message||String(e.error||'Unknown startup error');}});
