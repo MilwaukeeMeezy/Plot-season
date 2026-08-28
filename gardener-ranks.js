@@ -249,6 +249,10 @@
   }
 
   function renderAlwaysVisibleBadge() {
+    // Clean up the temporary/duplicate badge from earlier versions.
+    const duplicate = document.getElementById('gardener-rank-badge-guaranteed');
+    if (duplicate) duplicate.remove();
+
     let badge = document.getElementById('gardener-rank-badge');
     if (!gameIsRunning()) {
       if (badge) badge.remove();
@@ -262,11 +266,6 @@
       badge.type = 'button';
       badge.title = 'Open Garden Journey to view the full gardener rank ladder';
       badge.setAttribute('aria-label', 'Gardener rank progress');
-      Object.assign(badge.style, {
-        position: 'fixed', top: '10px', right: '190px', zIndex: '220', minWidth: '172px', padding: '7px 10px',
-        border: '2px solid #4A3728', borderRadius: '8px', background: '#FFFDF6', color: '#3D2B1F',
-        boxShadow: '2px 2px 0 #4A3728', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit'
-      });
       badge.addEventListener('click', function () {
         const journey = Array.from(document.querySelectorAll('button')).find((button) =>
           button.textContent && button.textContent.includes('Garden Journey')
@@ -276,10 +275,33 @@
       document.body.appendChild(badge);
     }
 
+    // Keep this anchored to the viewport exactly like the Save controls: it does not move
+    // with page content or scrolling, and is centered in the top header.
+    Object.assign(badge.style, {
+      position: 'fixed',
+      top: '8px',
+      left: '50%',
+      right: 'auto',
+      transform: 'translateX(-50%)',
+      zIndex: '220',
+      minWidth: '210px',
+      padding: '2px 14px 4px',
+      margin: '0',
+      border: '0',
+      borderRadius: '0',
+      background: 'transparent',
+      color: '#F3E6C9',
+      boxShadow: 'none',
+      textAlign: 'center',
+      cursor: 'pointer',
+      fontFamily: 'inherit',
+      lineHeight: '1.1'
+    });
+
     badge.innerHTML = `
-      <div style="font-size:9px;font-weight:900;letter-spacing:.7px;text-transform:uppercase;color:#6b5844">Gardener Rank</div>
-      <div style="font-size:13px;font-weight:900;margin-top:1px">${info.current.icon} ${info.current.name}</div>
-      <div style="font-size:9px;color:#6b5844;margin-top:2px">${nextRankProgress(info)}</div>
+      <div style="font-size:8px;font-weight:900;letter-spacing:1px;text-transform:uppercase;color:#CDBB99">Gardener Rank</div>
+      <div style="font-size:14px;font-weight:900;margin-top:1px;color:#F3E6C9">${info.current.icon} ${info.current.name}</div>
+      <div style="font-size:8px;color:#CDBB99;margin-top:1px">${nextRankProgress(info)}</div>
     `;
   }
 
@@ -341,10 +363,8 @@
   }
 
   function startRankUI() {
-    if (window.__plotSeasonRankUIStarted) return;
-    window.__plotSeasonRankUIStarted = true;
     renderRankPanel();
-    setInterval(renderRankPanel, 700);
+    setInterval(renderRankPanel, 1200);
   }
 
   if (document.readyState === 'loading') {
