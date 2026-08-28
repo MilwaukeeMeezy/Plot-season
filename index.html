@@ -6,10 +6,18 @@
   <title>Plot & Season</title>
   <link rel="stylesheet" href="./styles.css?v=20260828-1614" />
   <style>
-    /* The rank tracker may briefly recreate its badge during React re-renders.
-       Keep any unanchored copy invisible so only the header-owned copy can ever show. */
+    /* Only the copy anchored inside the real top header may be visible. */
     #gardener-rank-badge { visibility: hidden !important; }
-    #gardener-rank-badge[data-header-anchored="true"] { visibility: visible !important; }
+    #gardener-rank-badge[data-header-anchored="true"] {
+      visibility: visible !important;
+      position: absolute !important;
+      top: 50% !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translate(-50%, -50%) !important;
+      margin: 0 !important;
+      z-index: 2 !important;
+    }
   </style>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -32,7 +40,7 @@
     };
     document.body.appendChild(rankScript);
 
-    // The rank tracker owns the content; this code owns where that one badge is allowed to appear.
+    // The rank tracker updates rank content. This code owns the badge location.
     function anchorGardenerRankInHeader() {
       const obsolete = document.getElementById('gardener-rank-badge-guaranteed');
       if (obsolete) obsolete.remove();
@@ -48,7 +56,6 @@
       const topBarMainRow = topBarRight.parentElement;
       topBarMainRow.style.position = 'relative';
 
-      // Keep exactly one copy. Any tracker-created extras are removed before they can become visible.
       const badge = badges[0];
       badges.slice(1).forEach((extra) => extra.remove());
 
@@ -57,16 +64,10 @@
         topBarMainRow.appendChild(badge);
       }
 
+      // Non-position styles may still update here; CSS above permanently owns position.
       Object.assign(badge.style, {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        right: 'auto',
-        transform: 'translate(-50%, -50%)',
-        zIndex: '2',
         minWidth: '210px',
         padding: '2px 14px 4px',
-        margin: '0',
         border: '0',
         borderRadius: '0',
         background: 'transparent',
