@@ -3739,10 +3739,6 @@ function GardenGame() {
         const joinsExisting = pipes.some((p) => pipeRunsTouch(candidatePipe, p));
         const touchesOwnSource = pipeWaypoints.some((pt) => pointTouchesSource(pt));
         const touchesOwnBed = pipeWaypoints.some((pt) => validBedConnector(pt) || pointTouchesBed(pt));
-        if (pipes.length > 0 && !joinsExisting && !touchesOwnSource && !touchesOwnBed) {
-            addLog('This PVC run is not connected yet. Touch an existing PVC line, a water source, or a bed before finishing the run.');
-            return;
-        }
         const feetNeeded = candidatePipe.feet;
         const elbows = Math.max(0, pipeWaypoints.length - 2);
         const elbowCost = elbows * ELBOW_COST;
@@ -3763,7 +3759,7 @@ function GardenGame() {
         // Keep PVC selected while the player is building an irrigation network so branches
         // can be added without returning to the catalog after every completed run.
         setSelectedBuildMaterial('pvc');
-        addLog(`Laid ${feetNeeded}ft of PVC${elbows > 0 ? ` with ${elbows} elbow${elbows === 1 ? '' : 's'} ($${elbowCost})` : ''}.${joinsExisting ? ' Connected to the existing watering system.' : ''} PVC remains selected so you can add another branch; choose another tool or Cancel when finished.`);
+        addLog(`Laid ${feetNeeded}ft of PVC${elbows > 0 ? ` with ${elbows} elbow${elbows === 1 ? '' : 's'} (${elbowCost})` : ''}.${joinsExisting ? ' Connected to an existing watering system.' : touchesOwnSource || touchesOwnBed ? ' New run started.' : ' Independent PVC run placed.'} PVC remains selected so you can keep laying additional runs.`);
     }
     function cancelPipeRun() {
         setPipeWaypoints([]);
@@ -7834,7 +7830,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('bucket:') && 'Click open ground to place the planter bucket, then click the bucket to plant it.',
                     typeof selectedBuildMaterial === 'string' && selectedBuildMaterial.startsWith('path:') && 'Click open ground squares to lay your pathway.',
                     selectedBuildMaterial === 'pvc' && (pipeWaypoints.length === 0
-                        ? 'Click a starting square, then click again for each turn. Any PVC that touches an existing PVC run becomes part of the same watering system — it can join at an end, along the side, or at a crossing. Click Finish Run when done. Use the red ✕ on any existing PVC run to pick it back up.'
+                        ? 'Click a starting square, then click again for each turn. You can create as many separate PVC runs as you want. Any runs that touch automatically become one watering network; separate runs stay independent until connected. Click Finish Run after each run.'
                         : `${pipeWaypoints.length} point${pipeWaypoints.length === 1 ? '' : 's'} placed — click to add more turns, or Finish Run below.`),
                     ['wood', 'aluminum', 'cement', 'sticks'].includes(selectedBuildMaterial) &&
                         `Drag across the grid to paint a ${selectedBuildMaterial === 'sticks' ? 'sticks' : selectedBuildMaterial} bed, square by square. Uses 1 sq ft of material per square. Tap ✕ to remove (no refund).`)),
