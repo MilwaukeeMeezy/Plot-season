@@ -39,9 +39,7 @@
   }
 
   function qualifyingSeasonCount(minHealth) {
-    return state.seasonHistory.filter((s) =>
-      s && s.harvestCount > 0 && Number(s.minimumHealth) >= minHealth
-    ).length;
+    return state.seasonHistory.filter((s) => s && s.harvestCount > 0 && Number(s.minimumHealth) >= minHealth).length;
   }
 
   const RANKS = [
@@ -96,11 +94,21 @@
       if (RANKS[i].qualifies()) currentIndex = i;
       else break;
     }
-    return {
-      current: RANKS[currentIndex],
-      next: RANKS[currentIndex + 1] || null,
-      currentIndex
-    };
+    return { current: RANKS[currentIndex], next: RANKS[currentIndex + 1] || null, currentIndex };
+  }
+
+  function nextRankProgress(info) {
+    if (!info.next) return 'Highest rank achieved';
+    if (info.next.id === 'grower') {
+      const planted = state.planted ? 1 : 0;
+      const water = Math.min(state.gardenGoals.plantsWatered, 5) / 5;
+      const harvest = Math.min(state.gardenGoals.harvests, 3) / 3;
+      return `${Math.round(((planted + water + harvest) / 3) * 100)}% to Grower`;
+    }
+    if (info.next.id === 'hobbyist-cultivator') return `${Math.min(qualifyingSeasonCount(60), 1)}/1 season at 60%+`;
+    if (info.next.id === 'gardener') return `${Math.min(qualifyingSeasonCount(70), 2)}/2 seasons at 70%+`;
+    if (info.next.id === 'master-gardener') return `${Math.min(qualifyingSeasonCount(80), 3)}/3 seasons at 80%+`;
+    return `Next: ${info.next.name}`;
   }
 
   function detectSeason() {
@@ -112,21 +120,12 @@
 
   function finalizeSeason(name) {
     const harvests = state.currentSeasonHarvests || [];
-    if (!harvests.length) {
-      state.seasonHistory.push({
-        id: `${Date.now()}-${name}`,
-        season: name,
-        harvestCount: 0,
-        minimumHealth: null
-      });
-    } else {
-      state.seasonHistory.push({
-        id: `${Date.now()}-${name}`,
-        season: name,
-        harvestCount: harvests.length,
-        minimumHealth: Math.min(...harvests.map((h) => Number(h.health) || 0))
-      });
-    }
+    state.seasonHistory.push({
+      id: `${Date.now()}-${name}`,
+      season: name,
+      harvestCount: harvests.length,
+      minimumHealth: harvests.length ? Math.min(...harvests.map((h) => Number(h.health) || 0)) : null
+    });
     state.seasonHistory = state.seasonHistory.slice(-24);
   }
 
@@ -154,9 +153,7 @@
   }
 
   function looksLikeBasket(value) {
-    return Array.isArray(value) && value.some((x) =>
-      x && typeof x === 'object' && 'plantId' in x && 'health' in x && 'daysIn' in x
-    );
+    return Array.isArray(value) && value.some((x) => x && typeof x === 'object' && 'plantId' in x && 'health' in x && 'daysIn' in x);
   }
 
   function inspectState(prev, next) {
@@ -228,38 +225,31 @@
     return heading ? heading.parentElement : null;
   }
 
-  function gameIsRunning() {
-    return Array.from(document.querySelectorAll('button')).some((button) =>
-      button.textContent && button.textContent.includes('Garden Journey')
+  function gameHeaderParts() {
+    const saveButton = Array.from(document.querySelectorAll('button')).find((button) =>
+      (button.textContent || '').trim().includes('Save')
     );
+    if (!saveButton || !saveButton.parentElement || !saveButton.parentElement.parentElement) return null;
+    return {
+      right: saveButton.parentElement,
+      row: saveButton.parentElement.parentElement
+    };
   }
 
-  function nextRankProgress(info) {
-    if (!info.next) return 'Highest rank achieved';
-    if (info.next.id === 'grower') {
-      const planted = state.planted ? 1 : 0;
-      const water = Math.min(state.gardenGoals.plantsWatered, 5) / 5;
-      const harvest = Math.min(state.gardenGoals.harvests, 3) / 3;
-      return `${Math.round(((planted + water + harvest) / 3) * 100)}% to Grower`;
-    }
-    if (info.next.id === 'hobbyist-cultivator') return `${Math.min(qualifyingSeasonCount(60), 1)}/1 season at 60%+`;
-    if (info.next.id === 'gardener') return `${Math.min(qualifyingSeasonCount(70), 2)}/2 seasons at 70%+`;
-    if (info.next.id === 'master-gardener') return `${Math.min(qualifyingSeasonCount(80), 3)}/3 seasons at 80%+`;
-    return `Next: ${info.next.name}`;
-  }
-
-  function renderAlwaysVisibleBadge() {
-    // Clean up the temporary/duplicate badge from earlier versions.
+  function renderHeaderRank() {
     const duplicate = document.getElementById('gardener-rank-badge-guaranteed');
     if (duplicate) duplicate.remove();
 
+    const header = gameHeaderParts();
     let badge = document.getElementById('gardener-rank-badge');
-    if (!gameIsRunning()) {
+
+    if (!header) {
       if (badge) badge.remove();
       return;
     }
 
     const info = currentRankInfo();
+
     if (!badge) {
       badge = document.createElement('button');
       badge.id = 'gardener-rank-badge';
@@ -272,20 +262,42 @@
         );
         if (journey) journey.click();
       });
-      document.body.appendChild(badge);
     }
 
-    // Keep this anchored to the viewport exactly like the Save controls: it does not move
-    // with page content or scrolling, and is centered in the top header.
+    // The badge is a real child of the same header row as Cash / Save / Settings.
+    // It is never positioned relative to the viewport, so scrolling cannot move it independently.
+    if (badge.parentElement !== header.row) {
+      header.row.insertBefore(badge, header.right);
+    }
+
+    // Make the actual header row a stable three-column layout:
+    // left game title | centered rank | right cash/save/settings.
+    Object.assign(header.row.style, {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+      alignItems: 'center',
+      gap: '12px',
+      width: '100%'
+    });
+    if (header.row.firstElementChild) {
+      header.row.firstElementChild.style.justifySelf = 'start';
+    }
+    Object.assign(header.right.style, {
+      justifySelf: 'end',
+      marginLeft: '0'
+    });
+
     Object.assign(badge.style, {
-      position: 'fixed',
-      top: '8px',
-      left: '50%',
+      position: 'static',
+      top: 'auto',
+      left: 'auto',
       right: 'auto',
-      transform: 'translateX(-50%)',
-      zIndex: '220',
-      minWidth: '210px',
-      padding: '2px 14px 4px',
+      transform: 'none',
+      justifySelf: 'center',
+      alignSelf: 'center',
+      zIndex: 'auto',
+      minWidth: '190px',
+      padding: '1px 12px 3px',
       margin: '0',
       border: '0',
       borderRadius: '0',
@@ -315,7 +327,7 @@
       if (document.body) showRankToast(info.current);
     }
 
-    renderAlwaysVisibleBadge();
+    renderHeaderRank();
 
     const root = journeyRoot();
     if (!root) return;
@@ -364,7 +376,7 @@
 
   function startRankUI() {
     renderRankPanel();
-    setInterval(renderRankPanel, 1200);
+    setInterval(renderRankPanel, 500);
   }
 
   if (document.readyState === 'loading') {
