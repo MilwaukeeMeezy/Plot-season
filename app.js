@@ -1313,6 +1313,7 @@ function cellsContain(cells, x, y) {
 // ---------- MAIN ----------
 function GardenGame() {
     const [screen, setScreen] = useState('title');
+    const [showStartWelcomeGuide, setShowStartWelcomeGuide] = useState(false);
     const [activeTab, setActiveTab] = useState(null);
     const [zone, setZone] = useState(ZONES.find((z) => z.id === '8a'));
     const [budget, setBudget] = useState(STARTING_CASH_DEFAULT);
@@ -5354,9 +5355,9 @@ function GardenGame() {
                 React.createElement("p", { style: { ...styles.subtitle, textAlign: 'center' } }, "A garden-planning game grounded in real growing conditions."),
                 React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 } },
                     hasSaveGame && (React.createElement("button", { style: { ...styles.startBtn, background: '#5C7A4F' }, onClick: loadGame }, "\u25B6 Continue Saved Game")),
-                    React.createElement("button", { style: styles.startBtn, onClick: () => setScreen('setup') }, hasSaveGame ? 'New Game →' : 'Start Gardening →'),
+                    React.createElement("button", { style: styles.startBtn, onClick: () => { setShowStartWelcomeGuide(true); setScreen('setup'); } }, hasSaveGame ? 'New Game →' : 'Start Gardening →'),
                     React.createElement("button", { style: styles.backBtn, onClick: openSettings }, "Settings")),
-                React.createElement(FirstTimeGuide, { guideKey: "title", seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide }))));
+                )));
     }
     if (screen === 'settings') {
         const currentTrack = MUSIC_TRACKS.find((t) => t.id === selectedTrackId) || MUSIC_TRACKS[0];
@@ -5486,7 +5487,9 @@ function GardenGame() {
                         React.createElement("div", { style: styles.almanacWisdomText }, almanac.wisdom)),
                     React.createElement("div", { style: styles.almanacFooter },
                         playerCity ? `Almanac based on ${zone.name}, ${almanacDate}, and your location (${playerCity}).` : `Almanac based on ${zone.name} and ${almanacDate}. Add your city to account for local conditions over time.`))),
-            React.createElement(FirstTimeGuide, { guideKey: "setup", seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide })));
+            showStartWelcomeGuide
+                ? React.createElement(FirstTimeGuide, { guideKey: "title", seenGuides: {}, onDismiss: (key) => { setShowStartWelcomeGuide(false); dismissFirstTimeGuide(key); } })
+                : React.createElement(FirstTimeGuide, { guideKey: "setup", seenGuides: seenGuides, onDismiss: dismissFirstTimeGuide })));
     }
     if (screen === 'avatar') {
         const hairTypes = ['Bald', 'Afros', 'Picked Afros', 'Locs', 'Braids', 'Straight Hair', 'Short Cuts'];
