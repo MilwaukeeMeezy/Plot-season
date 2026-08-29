@@ -167,7 +167,7 @@
 
   function mergeJournalAndCalendar(layer, rightStack) {
     const journal = layer.querySelector('#jd-journal');
-    const calendar = layer.querySelector('#jd-calendar');
+    const calendar = layer.querySelector('section#jd-calendar');
     if (!journal || !calendar) return;
 
     const journalHeader = journal.querySelector('.jd-section-head > span:first-child');
@@ -229,7 +229,6 @@
       const seeds = layer.querySelector('#jd-seeds');
       const activeGoals = layer.querySelector('#jd-active-goals');
       const challenges = layer.querySelector('#jd-challenges');
-      const journal = layer.querySelector('#jd-journal');
 
       if (beds && seeds) {
         seeds.classList.remove('jd-wide');
