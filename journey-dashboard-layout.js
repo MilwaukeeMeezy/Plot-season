@@ -13,8 +13,7 @@
     style.id = STYLE_ID;
     style.textContent = `
       #${LAYER_ID} #jd-seeds,
-      #${LAYER_ID} #jd-challenges,
-      #${LAYER_ID} #jd-forecast {
+      #${LAYER_ID} #jd-challenges {
         margin-top: 0 !important;
         width: 100% !important;
       }
@@ -42,57 +41,80 @@
         text-transform: uppercase;
         letter-spacing: .04em;
       }
+      #${LAYER_ID} #jd-forecast.jd-sidebar-forecast {
+        margin-top: 13px !important;
+        width: 100% !important;
+        border-radius: 12px;
+        border: 1px solid #d7c69e;
+        background: rgba(255,253,244,.9);
+        box-shadow: none;
+        overflow: hidden;
+      }
+      #${LAYER_ID} #jd-forecast.jd-sidebar-forecast .jd-section-head {
+        padding: 10px 10px 7px;
+        font-size: 13px;
+      }
+      #${LAYER_ID} #jd-forecast.jd-sidebar-forecast .jd-section-action {
+        font-size: 7px;
+      }
       #${LAYER_ID} .jd-forecast-body {
-        padding: 0 11px 11px;
+        padding: 0 9px 9px;
       }
       #${LAYER_ID} .jd-forecast-grid {
         display: grid;
-        grid-template-columns: repeat(3,minmax(0,1fr));
-        gap: 7px;
+        grid-template-columns: 1fr;
+        gap: 6px;
       }
       #${LAYER_ID} .jd-forecast-day {
         min-width: 0;
-        padding: 9px 7px;
+        padding: 7px 8px;
         border: 1px solid #d9d4bd;
-        border-radius: 9px;
+        border-radius: 8px;
         background: rgba(238,246,235,.68);
-        text-align: center;
+        display: grid;
+        grid-template-columns: 48px 28px 42px minmax(0,1fr);
+        align-items: center;
+        gap: 4px;
+        text-align: left;
       }
       #${LAYER_ID} .jd-forecast-day:first-child {
         background: rgba(226,241,220,.86);
         border-color: #b8cfaa;
       }
       #${LAYER_ID} .jd-forecast-label {
-        font-size: 8px;
+        font-size: 7px;
         font-weight: 900;
         color: #71604c;
         text-transform: uppercase;
-        letter-spacing: .04em;
+        letter-spacing: .03em;
       }
       #${LAYER_ID} .jd-forecast-icon {
-        font-size: 23px;
+        font-size: 18px;
         line-height: 1;
-        margin: 5px 0 4px;
+        margin: 0;
+        text-align: center;
       }
       #${LAYER_ID} .jd-forecast-temp {
-        font-size: 14px;
+        font-size: 11px;
         font-weight: 950;
         color: #36543a;
+        white-space: nowrap;
       }
       #${LAYER_ID} .jd-forecast-condition {
-        margin-top: 2px;
-        font-size: 8px;
+        margin-top: 0;
+        font-size: 7px;
         color: #695a48;
-        line-height: 1.25;
+        line-height: 1.2;
       }
       #${LAYER_ID} .jd-forecast-note {
         margin-top: 7px;
-        font-size: 8px;
+        font-size: 7px;
         color: #7a6954;
-        line-height: 1.35;
+        line-height: 1.3;
       }
       @media(max-width:760px){
-        #${LAYER_ID} .jd-forecast-grid{grid-template-columns:1fr 1fr 1fr}
+        #${LAYER_ID} #jd-forecast.jd-sidebar-forecast{margin-top:10px!important}
+        #${LAYER_ID} .jd-forecast-day{grid-template-columns:52px 30px 46px minmax(0,1fr)}
       }
     `;
     document.head.appendChild(style);
@@ -162,7 +184,7 @@
       const temp = current.temperature + variation[i];
       return `<div class="jd-forecast-day"><div class="jd-forecast-label">${label}</div><div class="jd-forecast-icon">${condition.icon}</div><div class="jd-forecast-temp">${temp}°F</div><div class="jd-forecast-condition">${esc(condition.label)}</div></div>`;
     }).join('');
-    return `<div class="jd-section-head"><span>🌦️ Forecast</span><span class="jd-section-action">Garden outlook</span></div><div class="jd-forecast-body"><div class="jd-forecast-grid">${days}</div><div class="jd-forecast-note">Today reflects the current in-game weather. Future cards show the seasonal outlook; special weather events are still rolled when each new game day begins.</div></div>`;
+    return `<div class="jd-section-head"><span>🌦️ Forecast</span><span class="jd-section-action">Outlook</span></div><div class="jd-forecast-body"><div class="jd-forecast-grid">${days}</div><div class="jd-forecast-note">Today uses the current in-game weather. Future cards are the seasonal outlook; special events are still rolled when each new game day begins.</div></div>`;
   }
 
   function mergeJournalAndCalendar(layer, rightStack) {
@@ -199,16 +221,17 @@
     rightStack.appendChild(journal);
   }
 
-  function ensureForecast(layer, rightStack, beforeNode) {
+  function ensureForecast(layer, sidebar) {
     let forecast = layer.querySelector('#jd-forecast');
     if (!forecast) {
       forecast = document.createElement('section');
-      forecast.className = 'jd-card';
       forecast.id = 'jd-forecast';
     }
+    forecast.className = 'jd-card jd-sidebar-forecast';
     forecast.innerHTML = forecastHtml(layer);
-    if (beforeNode && beforeNode.parentElement === rightStack) rightStack.insertBefore(forecast, beforeNode);
-    else rightStack.appendChild(forecast);
+    const rankCard = sidebar.querySelector('.jd-rank-card');
+    if (rankCard) sidebar.insertBefore(forecast, rankCard.nextSibling);
+    else sidebar.appendChild(forecast);
   }
 
   function applyLayout() {
@@ -216,7 +239,8 @@
     const layer = document.getElementById(LAYER_ID);
     if (!layer) return;
     const grid = layer.querySelector('.jd-grid');
-    if (!grid) return;
+    const sidebar = layer.querySelector('.jd-sidebar');
+    if (!grid || !sidebar) return;
     const stacks = Array.from(grid.children).filter((el) => el.classList && el.classList.contains('jd-stack'));
     if (stacks.length < 2) return;
 
@@ -245,9 +269,7 @@
       const currentJournal = layer.querySelector('#jd-journal');
       if (currentJournal && currentJournal.parentElement !== rightStack) rightStack.appendChild(currentJournal);
       mergeJournalAndCalendar(layer, rightStack);
-
-      const mergedJournal = layer.querySelector('#jd-journal');
-      ensureForecast(layer, rightStack, mergedJournal);
+      ensureForecast(layer, sidebar);
     } finally {
       applying = false;
     }
