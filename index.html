@@ -30,9 +30,14 @@
           const journeyDashboardScript = document.createElement('script');
           journeyDashboardScript.src = './journey-dashboard.js?v=' + Date.now();
           journeyDashboardScript.onload = function () {
-            const plotSeasonScript = document.createElement('script');
-            plotSeasonScript.src = './app.js?v=' + Date.now();
-            document.body.appendChild(plotSeasonScript);
+            const journeyLayoutScript = document.createElement('script');
+            journeyLayoutScript.src = './journey-dashboard-layout.js?v=' + Date.now();
+            journeyLayoutScript.onload = function () {
+              const plotSeasonScript = document.createElement('script');
+              plotSeasonScript.src = './app.js?v=' + Date.now();
+              document.body.appendChild(plotSeasonScript);
+            };
+            document.body.appendChild(journeyLayoutScript);
           };
           document.body.appendChild(journeyDashboardScript);
         };
