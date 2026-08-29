@@ -11,65 +11,90 @@
     style.textContent = `
       [data-journey-dashboard="true"] {
         display: grid !important;
-        grid-template-columns: minmax(0, 1.45fr) minmax(300px, .78fr) !important;
+        grid-template-columns: minmax(0, 1.5fr) minmax(310px, .82fr) !important;
         gap: 14px !important;
         align-items: start !important;
+        max-width: 1180px !important;
+        padding: 20px !important;
+        margin: 0 auto !important;
         background: transparent !important;
+        box-sizing: border-box !important;
       }
 
       [data-journey-dashboard="true"] > [data-journey-section] {
         min-width: 0;
         margin: 0 !important;
         border-radius: 14px !important;
-        box-shadow: 0 10px 24px rgba(55, 47, 35, .10) !important;
+        box-shadow: 0 10px 24px rgba(55, 47, 35, .12) !important;
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
+        box-sizing: border-box !important;
       }
 
       [data-journey-dashboard="true"] > [data-journey-section="hero"] {
         grid-column: 1 / -1;
-        padding: 17px 20px !important;
+        padding: 18px 22px 8px !important;
+        margin-bottom: -14px !important;
         color: #fff !important;
-        border: 1px solid rgba(255,255,255,.28) !important;
-        background: linear-gradient(125deg, rgba(68,111,57,.96), rgba(86,132,72,.90)) !important;
-        box-shadow: 0 12px 26px rgba(51, 74, 43, .19) !important;
+        font-family: Georgia, 'Times New Roman', serif !important;
+        font-size: 27px !important;
+        font-weight: 900 !important;
+        border: 1px solid rgba(255,255,255,.25) !important;
+        border-bottom: 0 !important;
+        border-radius: 16px 16px 0 0 !important;
+        background: linear-gradient(125deg, rgba(62,103,53,.97), rgba(88,137,73,.93)) !important;
+        box-shadow: 0 12px 26px rgba(51, 74, 43, .20) !important;
+      }
+
+      [data-journey-dashboard="true"] > [data-journey-section="intro"] {
+        grid-column: 1 / -1;
+        padding: 3px 22px 17px !important;
+        margin-bottom: 2px !important;
+        color: #eef7e9 !important;
+        font-size: 12px !important;
+        line-height: 1.5 !important;
+        border: 1px solid rgba(255,255,255,.25) !important;
+        border-top: 0 !important;
+        border-radius: 0 0 16px 16px !important;
+        background: linear-gradient(125deg, rgba(62,103,53,.97), rgba(88,137,73,.93)) !important;
+        box-shadow: 0 12px 26px rgba(51, 74, 43, .20) !important;
       }
 
       [data-journey-dashboard="true"] > [data-journey-section="rank"] {
         grid-column: 2;
-        background: rgba(239, 248, 232, .94) !important;
-        border: 1.5px solid rgba(118, 153, 94, .45) !important;
+        background: rgba(239, 248, 232, .96) !important;
+        border: 1.5px solid rgba(118, 153, 94, .48) !important;
       }
 
       [data-journey-dashboard="true"] > [data-journey-section="learning"] {
         grid-column: 1;
-        background: rgba(255, 253, 246, .95) !important;
-        border: 1.5px solid rgba(178, 151, 96, .34) !important;
+        background: rgba(255, 253, 246, .96) !important;
+        border: 1.5px solid rgba(178, 151, 96, .38) !important;
       }
 
       [data-journey-dashboard="true"] > [data-journey-section="active"] {
         grid-column: 1;
-        background: rgba(255, 246, 210, .95) !important;
-        border: 1.5px solid rgba(207, 162, 64, .38) !important;
+        background: rgba(255, 246, 210, .96) !important;
+        border: 1.5px solid rgba(207, 162, 64, .42) !important;
       }
 
       [data-journey-dashboard="true"] > [data-journey-section="challenges"] {
         grid-column: 2;
-        background: rgba(232, 246, 246, .95) !important;
-        border: 1.5px solid rgba(76, 137, 137, .38) !important;
+        background: rgba(232, 246, 246, .96) !important;
+        border: 1.5px solid rgba(76, 137, 137, .42) !important;
       }
 
       [data-journey-dashboard="true"] > [data-journey-section="milestones"] {
         grid-column: 1;
-        background: rgba(239, 247, 233, .93) !important;
-        border: 1.5px solid rgba(105, 147, 79, .30) !important;
-        padding: 10px !important;
+        background: rgba(239, 247, 233, .95) !important;
+        border: 1.5px solid rgba(105, 147, 79, .35) !important;
+        padding: 11px !important;
       }
 
       [data-journey-dashboard="true"] > [data-journey-section="journal"] {
         grid-column: 2;
-        background: rgba(245, 249, 250, .96) !important;
-        border: 1.5px solid rgba(91, 133, 154, .30) !important;
+        background: rgba(245, 249, 250, .97) !important;
+        border: 1.5px solid rgba(91, 133, 154, .34) !important;
         position: sticky !important;
         top: 14px !important;
       }
@@ -84,9 +109,16 @@
         border-top: 5px solid #568a97 !important;
       }
 
+      [data-journey-dashboard="true"] > [data-journey-section="learning"] > div:first-child,
+      [data-journey-dashboard="true"] > [data-journey-section="active"] > div:first-child,
+      [data-journey-dashboard="true"] > [data-journey-section="journal"] > div:first-child {
+        color: #314b32 !important;
+      }
+
       @media (max-width: 1050px) {
         [data-journey-dashboard="true"] {
           grid-template-columns: 1fr !important;
+          padding: 14px !important;
         }
         [data-journey-dashboard="true"] > [data-journey-section] {
           grid-column: 1 !important;
@@ -112,6 +144,7 @@
 
     const text = (child.textContent || '').replace(/\s+/g, ' ').trim();
     if (text === '🏆 Your Garden Journey') return 'hero';
+    if (text.startsWith('Learn by doing. Finish active goals')) return 'intro';
     if (text.includes('🌻 Beginner Learning Path')) return 'learning';
     if (text.includes('🎯 Active Goals')) return 'active';
     if (text.includes('📔 Garden Journal')) return 'journal';
@@ -146,7 +179,7 @@
 
   function start() {
     decorate();
-    setInterval(decorate, 500);
+    setInterval(decorate, 350);
   }
 
   if (document.readyState === 'loading') {
