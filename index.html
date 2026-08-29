@@ -33,9 +33,14 @@
             const journeyLayoutScript = document.createElement('script');
             journeyLayoutScript.src = './journey-dashboard-layout.js?v=' + Date.now();
             journeyLayoutScript.onload = function () {
-              const plotSeasonScript = document.createElement('script');
-              plotSeasonScript.src = './app.js?v=' + Date.now();
-              document.body.appendChild(plotSeasonScript);
+              const journeyLogScript = document.createElement('script');
+              journeyLogScript.src = './journey-hide-garden-log.js?v=' + Date.now();
+              journeyLogScript.onload = function () {
+                const plotSeasonScript = document.createElement('script');
+                plotSeasonScript.src = './app.js?v=' + Date.now();
+                document.body.appendChild(plotSeasonScript);
+              };
+              document.body.appendChild(journeyLogScript);
             };
             document.body.appendChild(journeyLayoutScript);
           };
