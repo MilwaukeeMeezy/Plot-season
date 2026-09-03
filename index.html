@@ -2,9 +2,10 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Plot & Season</title>
   <link rel="stylesheet" href="./styles.css?v=20260828-2125" />
+  <link rel="stylesheet" href="./mobile-optimizations.css?v=20260902-1" />
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 </head>
@@ -36,9 +37,14 @@
               const journeyLogScript = document.createElement('script');
               journeyLogScript.src = './journey-hide-garden-log.js?v=' + Date.now();
               journeyLogScript.onload = function () {
-                const plotSeasonScript = document.createElement('script');
-                plotSeasonScript.src = './app.js?v=' + Date.now();
-                document.body.appendChild(plotSeasonScript);
+                const mobileScript = document.createElement('script');
+                mobileScript.src = './mobile-optimizations.js?v=' + Date.now();
+                mobileScript.onload = function () {
+                  const plotSeasonScript = document.createElement('script');
+                  plotSeasonScript.src = './app.js?v=' + Date.now();
+                  document.body.appendChild(plotSeasonScript);
+                };
+                document.body.appendChild(mobileScript);
               };
               document.body.appendChild(journeyLogScript);
             };
