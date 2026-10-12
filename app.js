@@ -8013,7 +8013,7 @@ function YardTab({ zone, calendarMonth, beds, groundPlants, mode, setMode, dragS
                                     ...(burnPatchCell ? { boxShadow: activeBurn && activeBurn.ignited ? 'inset 0 0 0 2px #C1443C' : 'inset 0 0 0 2px #D88E42' } : {}),
                                     ...(burnRingCell ? { outline: `2px ${activeBurn && (activeBurn.perimeterWetPct || 0) >= 75 ? 'solid' : 'dashed'} ${activeBurn && (activeBurn.perimeterWetPct || 0) >= 75 ? '#5C9BD5' : '#C9B98F'}`, outlineOffset: '-2px' } : {}),
                                     ...(burnRecoveryArea ? { background: 'repeating-linear-gradient(135deg, rgba(64,48,39,.42) 0 7px, rgba(88,68,52,.34) 7px 14px), #8A7A62' } : {}),
-                                    ...(!onBed && !onBarrel && !onGreenhouse && !onPond && !onTrellis && (enabledMethods.sow || (selectedSource === 'plant' && isTreeOrBush(selectedPlant))) && mode === 'plant' && !groundSq ? styles.sqftCellEmpty : {}),
+                                    ...(!onBed && !onBarrel && !onGreenhouse && !onPond && !onTrellis && (enabledMethods.sow || (selectedSource === 'plant' && isTreeOrBush(selectedPlant))) && mode === 'plant' && !groundSq && !groundTile ? styles.sqftCellEmpty : {}),
                                 }, title: obstacle ? (obstacle.kind === 'rock' ? 'A rock — clear it with a Shovel or Tiller' : 'A tree — permanent, build around it')
                                     : mode === 'plant' && !onBed && !onBarrel && !onGreenhouse && !onPond && !onTrellis && !groundSq ? 'Open native ground — click to prepare and plant'
                                     : !onBed && !onBarrel && !groundTilled && mode !== 'water' ? 'Needs preparation — use a Tiller, Shovel, or Hoe'
