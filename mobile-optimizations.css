@@ -247,3 +247,17 @@ button, [role="button"] { -webkit-tap-highlight-color: transparent; }
     touch-action: pan-x pan-y;
   }
 }
+
+@media (hover: none) and (pointer: coarse) {
+  body.ps-touch .ps-harvest-touch {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    top: -3px !important;
+    right: -3px !important;
+    font-size: 22px !important;
+    z-index: 60 !important;
+    touch-action: manipulation !important;
+  }
+}
