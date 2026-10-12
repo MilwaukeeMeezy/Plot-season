@@ -60,6 +60,39 @@
     });
   }
 
+  function wireHarvestTouch(root) {
+    if (!document.body.classList.contains('ps-touch')) return;
+    const selector = [
+      'button[title^="Ready to harvest"]',
+      'button[title^="Past its peak"]',
+      'button[title^="Weak harvest"]',
+      'button[title^="Vine died"]'
+    ].join(',');
+
+    Array.from(root.querySelectorAll(selector)).forEach((button) => {
+      button.classList.add('ps-harvest-touch');
+      if (button.dataset.psHarvestTouchWired === 'true') return;
+      button.dataset.psHarvestTouchWired = 'true';
+
+      let startX = 0;
+      let startY = 0;
+      button.addEventListener('touchstart', (event) => {
+        const touch = event.changedTouches && event.changedTouches[0];
+        if (!touch) return;
+        startX = touch.clientX;
+        startY = touch.clientY;
+      }, { passive: true });
+
+      button.addEventListener('touchend', (event) => {
+        const touch = event.changedTouches && event.changedTouches[0];
+        if (touch && (Math.abs(touch.clientX - startX) > 12 || Math.abs(touch.clientY - startY) > 12)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        button.click();
+      }, { passive: false });
+    });
+  }
+
   function markDialogs(root) {
     Array.from(root.querySelectorAll('div')).forEach((el) => {
       const style = getComputedStyle(el);
@@ -114,6 +147,7 @@
     if (topBar) topBar.classList.add('ps-topbar');
     markPrimaryNav(root);
     markTouchControls(root);
+    wireHarvestTouch(root);
     markDialogs(root);
     markYardViewport(root);
     markHorizontalOverflow(root);
